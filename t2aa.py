@@ -51,6 +51,7 @@ font='rectangle'
 autolinebreak=False
 wordwrap=False
 helpAndQuit=False
+comment=False
 
 def helparg():
     global availablefonts
@@ -58,22 +59,24 @@ def helparg():
     for font in availablefonts:
         samples += 'fontname: ' + font + '\n'
         samples += 'available characters: ' + ''.join([c for c in availablefonts[font]['index']]) + '\n'
-        samples += write(0, font, 'hello world!', True, True)
+        samples += write(0, font, 'hello world!', True, True, False)
     print('''
 usage: t2aa.py [ -h  | --help ]
                [ -f  | --font ] FONTNAME
                [ -ls | --letterspacing] NUMBER
                [ -lb | --linebreak]
                [ -ww | --wordwrap]
+               [ -c  | --comment] CHARACTERS
 
 with font going default if FONTNAME not available and
 letterspacing can not be less than -1, not readable otherwise
 optional linebreak and wordwrap take terminal width into account.
+precede lines with comment characters. characters may have to be encapsulated in quotes.
 
 extend available font dictionary as desired. currently available:\n
 ''' + samples)
 
-def write(ls, font, string, autolinebreak, wordwrap):
+def write(ls, font, string, autolinebreak, wordwrap, comment):
     global availablefonts
 
     terminalwidth, terminalheight = shutil.get_terminal_size(0)
@@ -88,7 +91,7 @@ def write(ls, font, string, autolinebreak, wordwrap):
 
     for word in chunks:
         # quick assembly of word length to handle word wraps
-        expectablelength=0
+        expectablelength=0 + (len(comment) + 1 if comment else 0)
         for char in word:
             expectablelength += len(availablefonts[font]['lines'][0][availablefonts[font]['index'].index(char)]) + ls
         if wordwrap and len(output):
@@ -120,7 +123,7 @@ def write(ls, font, string, autolinebreak, wordwrap):
     # parse array to output string
     returnstring=''
     for wrap in output:
-        returnstring += '\n'.join(wrap) + '\n'
+        returnstring += ('\n'+ (comment + ' ' if comment else '')).join(wrap) + '\n'
     
     return returnstring
 
@@ -133,6 +136,7 @@ if __name__ == '__main__':
         'h': '--help|-h',
         'ls': '((?:--letterspacing|-ls)[:\\s]+)(-{0,1}\\d+)',
         'f': '((?:--font|-f)[:\\s]+)([^\\s]+[\\w]+)*',
+        'c': '((?:--comment|-c)[:\\s]+)([^\\s]+.+)*',
         'lb': '--linebreak|-lb',
         'ww': '--wordwrap|-ww'
         }
@@ -155,10 +159,13 @@ if __name__ == '__main__':
         elif opt == 'ww' and arg:
             wordwrap=True
             params=params.replace(''.join(arg[0]), '')
+        elif opt == 'c' and arg:
+            comment=arg[0][1]
+            params=params.replace(''.join(arg[0]), '')
 
     string=params.strip() if len(params.strip()) else 'hello world!'
 
     if not helpAndQuit:
-        print(write(letterspacing, font, string, autolinebreak, wordwrap))
+        print(write(letterspacing, font, string, autolinebreak, wordwrap, comment))
     else:
         helparg()
