@@ -244,8 +244,8 @@ def group(word):
 
 if __name__=="__main__":
 	print("circular gallifreyan translator\nfor latin characters only and without digits and punctuation.\ngiving you hints on how to combine and draw the letters.\nbypass to sample value by just pressing enter.")
-	text = "" #input("type single sentence: ")
-	radius = "" #input("type circle radius (px): ")
+	text = input("type single sentence: ")
+	radius = input("type circle radius (px): ")
 
 	if text == "":
 		text = preset["sample"]
@@ -261,7 +261,6 @@ if __name__=="__main__":
 	img = Image.new("RGB", (int(write.n * len(text)), int(write.n * 1.5)), (255, 255, 255))
 	draw = ImageDraw.Draw(img)
 
-
 	for word in characters(text):
 		print (word)
 		for group in word:
@@ -269,8 +268,8 @@ if __name__=="__main__":
 				sign(letter)
 				write.nextchar()
 		write.space()
-
 	del draw 
+
 	try:
 		img.save("cg.png")
 		img.show() 
