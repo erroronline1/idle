@@ -19,6 +19,9 @@ automated resizing of images within the same directory. useful for preparing blo
 ### leech
 serves to automatically download files according to linked ressources on websites. it is best used from the command line to have access to further options. this is not ai, you'll have to analyze the inhomogeneous sources by yourself beforehand in order to set up. see help for setup syntax.
 
+### proxyping
+this proof-of-concept retrieves lists of proxies and user-agents by pattern matching given websites. then it calls the specified url using the list of proxies and random user-agents. the proxies from the samples are not very reliable on connection or might need longer timeouts resulting in elongated runtime of the script. but it is quite dynamic.
+
 ### rename
 rename all files in specified folder. choose if you want to rename all the same (as in file(0).mp3, file(1).mp3, ...), strip parts of filenames (as in file_1_security_copy.mp3, file_2_security_copy.mp3, ...), add something before overwriting while copying into folder (as in file_1_a.mp3, file_2_a.mp3, file_3_a.mp3)
 
