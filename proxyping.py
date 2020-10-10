@@ -11,17 +11,17 @@ import random
 from datetime import date, datetime
 
 print ('''
-						 _
+                         _
  ___ ___ ___ _ _ _ _ ___|_|___ ___
 | . |  _| . |_'_| | | . | |   | . |
 |  _|_| |___|_,_|_  |  _|_|_|_|_  |
 |_|             |___|_|       |___|
 
-	by error on line 1 (erroronline.one)
+    by error on line 1 (erroronline.one)
 
 ''')
 
-DEFAULTJSON={
+DEFAULTJSON = {
     "proxylists": [{
         "url": [
             "https://free-proxy-list.net/"
@@ -43,37 +43,37 @@ DEFAULTJSON={
 HELPTEXT= '''
 [help]
 
-	this program serves to automatically send requests to a given url through different proxies. it is best
-	used from the command line to have access to further options. this is not ai, you'll have to analyze the
-	probably inhomogeneous sources by yourself beforehand in order to set up. 
+    this program serves to automatically send requests to a given url through different proxies. it is best
+    used from the command line to have access to further options. this is not ai, you'll have to analyze the
+    probably inhomogeneous sources by yourself beforehand in order to set up. 
 
-	usage: proxyping [ -h | --help ]           this message, priority handling
-					 [ -r | --reset ]          writes default setup file if not already exists, priority handling
-                     [ -e | --error]           displays connection errors that are usually hidden
+    usage: proxyping [ -h | --help ]           this message, priority handling
+                     [ -r | --reset ]          writes default setup file if not already exists, priority handling
+                     [ -e | --error]           logs connection errors to file
                      [ -l | --limit ] NUMBER   limit attempts irrespective of found proxies
-					 URL                       url to ping
+                     URL                       url to ping
 
-	setup is specified in proxyping.json as following:
+    setup is specified in proxyping.json as following:
 
-''' + json.dumps(DEFAULTJSON, indent=4) + '''
+''' + json.dumps(DEFAULTJSON, indent = 4) + '''
 
-	* set up any proxy sources with optional multiple urls and respective pattern to retrieve ip and port
-	* set up any user-agent sources with optional multiple urls and respective pattern to retrieve ip and port
-	  to trick source servers that don't play well with requests not coming from a browser
-	* define some fallback user-agents headers for the same reason
-	* define timeout in seconds while not retrieving sourcecode from sites, must not be 0
+    * set up any proxy sources with optional multiple urls and respective pattern to retrieve ip and port
+    * set up any user-agent sources with optional multiple urls and respective pattern to retrieve ip and port
+      to trick source servers that don't play well with requests not coming from a browser
+    * define some fallback user-agents headers for the same reason
+    * define timeout in seconds while not retrieving sourcecode from sites, must not be 0
 
-	every request will be made through another proxies ip with a random user-agent
+    every request will be made through another proxies ip with a random user-agent
 
-	extend whole dictionaries/objects if multiple subsites demand different patterns
+    extend whole dictionaries/objects if multiple subsites demand different patterns
 '''
 
-#set globals
+# set globals
 STOPANIMATION = False 				# setter to start/stop working variable
 TERMINALWIDTH, terminalheight = shutil.get_terminal_size(0)
 terminalheight = 'linter, please ignore unused ' + str(terminalheight)
-USERAGENTS = [] #initialize global varibale
-LOGFILE = False #initialize global varibale
+USERAGENTS = [] 					# initialize as global varibale
+LOGFILE = False 					# initialize as global varibale
 
 #                           _   ___             _   _
 #   ___ ___ ___ ___ ___ ___| | |  _|_ _ ___ ___| |_|_|___ ___ ___
@@ -82,21 +82,21 @@ LOGFILE = False #initialize global varibale
 #  |___|
 #
 
-#log routine writing to file and terminal
+# log routine writing to file and terminal
 def log(msg):
 	if LOGFILE:
 		LOGFILE.write( msg + '\n' )
 
-#create sample setup file if necessary and not existing
+# create sample setup file if necessary and not existing
 def reset():
 	try:
-		with open('proxyping.json', 'x', newline='', encoding='utf8') as file:
-			json.dump(DEFAULTJSON, file, ensure_ascii=False, indent=4)
+		with open('proxyping.json', 'x', newline = '', encoding = 'utf8') as file:
+			json.dump(DEFAULTJSON, file, ensure_ascii = False, indent = 4)
 		fprint('[*]  setting file proxyping.json successfully written. please accommodate to your environment.\n')
 	except:
 		fprint('[~]  proxyping.json could not be written because it already existed. please contact devops.\n')
 
-#fancy anmiation to show something's going on
+# fancy anmiation to show something's going on
 def animationbar():
 	for c in itertools.cycle(['.   ', '..  ', '... ', '....', ' ...', '  ..', '   .']):
 		if not STOPANIMATION:
@@ -106,7 +106,7 @@ def animationbar():
 		else:
 			time.sleep(1)
 
-#like print but optionally clears loading bar animation beforehand
+# like print but optionally clears loading bar animation beforehand
 def fprint(*args, clearanimation = False, newline = True):
 	if type(clearanimation) is str:
 		sys.stdout.write( '\r' + clearanimation + ' ' * (4 - len(clearanimation) ))
@@ -119,17 +119,19 @@ def fprint(*args, clearanimation = False, newline = True):
 	sys.stdout.flush()
 	return msg
 
-#create session
+# create session
 def get_session(proxy = False):
 	# construct an HTTP session
 	session = requests.Session()
 	if proxy:
+		# set os environment proxies. works for the runtime of the script, has not to be un- or reset
 		os.environ['http_proxy'] = proxy[0] + ":" + proxy[1]
 		os.environ['https_proxy'] = proxy[0] + ":" + proxy[1]
+		# make session to use proxy
 		session.proxies = {"http": proxy[0] + ":" + proxy[1], "https": proxy[0] + ":" + proxy[1]}
 	return session
 
-#retrieve source code from site
+# retrieve source code from site
 def get_source( link, proxy = False ):
 	useragent = False
 	if len(USERAGENTS):
@@ -157,7 +159,7 @@ def analyze(src):
 		for match in matches:
 			if isinstance(match, tuple):
 				#make tuples an array
-				match=list(match)
+				match = list(match)
 			if match not in result:
 				result.append( match )
 	return result
@@ -186,7 +188,7 @@ def main(link, limit):
 		USERAGENTS = analyze(uasite)
 
 	STOPANIMATION=True
-	fprint( '[*]  approximately {0} proxies and {1} user agents were found.'.format(len(PROXYLIST),len(USERAGENTS)) )
+	fprint( '[*]  approximately {0} proxies and {1} user agents were found.'.format(len(PROXYLIST), len(USERAGENTS)) )
 	if not len(USERAGENTS):
 		fprint( '[!]  since no user agents were found, settings fallback options will be used.' )
 		USERAGENTS=SETTINGS['fallback']['useragents']
@@ -194,12 +196,12 @@ def main(link, limit):
 	confirm = input('\n[?]  do you want to ping ' + link + ' now?\n     type "y" to proceed, "h" for help, nothing or any other key to abort: ')
 	if confirm == 'y':
 		STOPANIMATION = False
-		success=0
+		success = 0
 		for i, n in enumerate(PROXYLIST):
 			if type(limit) == int and i > limit - 1:
 				break
-			fprint('     ping ' + str(i+1) + ' of ' + str(limit or len(PROXYLIST)), newline=False)
-			if bool(get_source( link, list(n) )):
+			fprint('     ping ' + str(i + 1) + ' of ' + str(limit or len(PROXYLIST)), newline = False)
+			if type(get_source( link, list(n) )) == str:
 				success += 1
 		log(fprint('[*]  {0} successful attempts.'.format(success)))
 
@@ -216,10 +218,10 @@ def main(link, limit):
 # #load settings
 try:
 	with open('proxyping.json', 'r') as jsonfile:
-		SETTINGS= json.loads(jsonfile.read().replace('\n', ''))
+		SETTINGS = json.loads(jsonfile.read().replace('\n', ''))
 except:
 	fprint('[~] settings could not be loaded, see help for syntax...')
-	SETTINGS=False
+	SETTINGS = False
 
 if __name__ == '__main__':
 	#argument handler	
@@ -235,7 +237,7 @@ if __name__ == '__main__':
 				}
 	params = ' '.join(sys.argv) + ' '
 	for opt in options:
-		arg=re.findall(options[opt], params, re.IGNORECASE)
+		arg = re.findall(options[opt], params, re.IGNORECASE)
 		if opt == 'h' and arg:
 			confirm = 'h'
 			break
