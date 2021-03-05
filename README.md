@@ -11,10 +11,10 @@ gallifreyan is based on television series doctor who by bbc, translation is base
 conversion of phonetic c for english only. platform related unicode inconsistencies though.
 
 ### circular_gallifreyan
-same as above but with graphical output. favoured grouping of characters still in console.
+same as above but with graphical output. favoured grouping of characters still in console. inspired by, redone and extended in javascript for [mightyfrongs gallifreyan translation helper](https://github.com/Mightyfrong/gallifreyan-translation-helper) with a bit of participation by myself.
 
 ### imgresize
-automated resizing of images within the same directory. useful for preparing blog content. nothing fancy.
+automated resizing of images within the calling directory, optional including its subdirectiories to given nesting. useful for preparing blog content or releasing storage space retrospectively after everyone forgot to set the cameras to NOT maximum resolution. recently with optional terminal parameters.
 
 ### leech
 serves to automatically download files according to linked ressources on websites. it is best used from the command line to have access to further options. this is not ai, you'll have to analyze the inhomogeneous sources by yourself beforehand in order to set up. see help for setup syntax.
