@@ -11,12 +11,17 @@ MAXSIZE = 1920 # default value of maximum pixel dimesion
 NESTING = 0 # max level of directory nesting, no subdirectories by default
 REPLACE = False
 HELP = False
+DIRECTIONS={3 : 180, 6 : 270, 8 : 90} # rotate by {value}-degrees if {key} is found as orientation in exif-metadata
+
+for ORIENTATION in ExifTags.TAGS.keys(): # get 16-bit integer EXIF tag enumeration
+	if ExifTags.TAGS[ORIENTATION] == 'Orientation':
+		break
 
 print ('''
  _                       _
 |_|_____ ___ ___ ___ ___|_|___ ___
 | |     | . |  _| -_|_ -| |- _| -_|
-|_|_|_|_|_  |_| |___|___|_|___|___| build 20210305
+|_|_|_|_|_  |_| |___|___|_|___|___| build 20210306
         |___|
 
 by error on line 1 (erroronline.one)
@@ -56,43 +61,30 @@ def resize(curdir):
 	for file in dir:
 		if file.find('.') < 1:
 			continue
-		name = file[0:file.rindex('.')]
 		extension = file[file.rindex('.'):].lower()
-		mtime = os.path.getmtime(file)
-
 		if extension in ('.jpg', '.png'):
 			img = Image.open(file)
-			try:
-				for orientation in ExifTags.TAGS.keys():
-					if ExifTags.TAGS[orientation] == 'Orientation':
-						break
-				exif = dict(img._getexif().items())
-
-				if exif[orientation] == 3:
-					img=img.rotate(180, expand = True)
-				elif exif[orientation] == 6:
-					img=img.rotate(270, expand = True)
-				elif exif[orientation] == 8:
-					img=img.rotate(90, expand = True)
-			except (AttributeError, KeyError, IndexError):
-				# cases: image don't have getexif
-				pass
-
-			owidth = img.size[0]
-			oheight = img.size[1]
-			if owidth > MAXSIZE or oheight > MAXSIZE:
-				if owidth >= oheight:
-					height = round(MAXSIZE * oheight / owidth)
+			if img.width > MAXSIZE or img.height > MAXSIZE:
+				name = file[0:file.rindex('.')]
+				mtime = os.path.getmtime(file)
+				try:
+					exif = dict(img._getexif().items())
+					if exif[ORIENTATION] in DIRECTIONS:
+						img = img.rotate(DIRECTIONS[exif[ORIENTATION]], expand = True)
+				except (AttributeError, KeyError, IndexError):
+					# cases: image doesn't have getexif-data
+					pass
+				if img.width >= img.height:
+					height = round(MAXSIZE * img.height / img.width)
 					width = MAXSIZE
 				else:
-					width = round(MAXSIZE * owidth / oheight)
+					width = round(MAXSIZE * img.width / img.height)
 					height = MAXSIZE
 				img = img.resize((width, height), Image.ANTIALIAS)
 				newname = '{0}_{1}x{2}_{3}{4}'.format(name, width, height, datetime.utcfromtimestamp(mtime).strftime('%Y%m%d') , extension)
 				img.save(newname)
 				if REPLACE:
 					os.unlink(file)
-				img.close()
 
 #   _     _ _   _     _ _
 #  |_|___|_| |_|_|___| |_|___ ___
