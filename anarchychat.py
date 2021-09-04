@@ -4,10 +4,13 @@ import time
 import datetime
 import shutil
 import math
-import winsound
+import json
+
 from colorama import Fore, Style, init
 import psutil
 import os
+
+import winsound
 from win10toast import ToastNotifier
 
 HELLO = '''
@@ -20,79 +23,92 @@ HELLO = '''
 by error on line 1 (erroronline.one)
 '''
 
-INI = {
-	'database' : '\\\\192.168.178.26\\Public\\anarchychat.db', # e.g. on some network path
-	'dblimit' : 25, # sanitize database from all entries where ID < MAX(ID) - DBLIMIT
-	'update' : 3, # seconds interval to fetch contribution updates, likely slightly limits read/write traffic on the drive
-	'active' : 30, # seconds to expire before a user is considered logged off. must be more than update interval
-	'user' : None, # initiate global user name, changeable
-	'language' : 'en', # default language, changeable
-	'title': 'AnarchyChat' # app title to display e.g. in notification
+DEFAULT = { # default settings
+	'database': '\\\\192.168.178.26\\Public\\anarchychat.db', # e.g. on some network path
+	'dblimit': 25, # sanitize database from all entries where ID < MAX(ID) - DBLIMIT
+	'interval': 3, # seconds interval to fetch contribution updates, likely slightly limits read/write traffic on the drive
+	'active': 30, # seconds to expire before a user is considered logged off. must be more than update interval
+	'user': None, # initiate global user name, changeable
+	'language': 'en', # default language, changeable
+	'title':'AnarchyChat' # app title to display e.g. in notification
 }
 
 class anarchychat:
 	def __init__(self, ini):
-		self.database = ini['database']
-		self.dblimit = ini['dblimit']
-		self.interval = ini['update']
-		self.active = ini['active']
-		self.user = ini['user']
-		self.language = ini['language']
-		self.title = ini['title']
+		self.database = self.dblimit = self.interval = self.active = self.user = self.language = self.title = 'i like you too, linter!'
+
+		self.defaultini = ini
 		self.notify = True
+		# set attributes according to config file or default ini
+		self.ini('get')
 		self.languageChunks = {
-			'setname': {
-				'en': 'enter your name, [exit] to quit: ',
-				'de': 'bitte gib deinen namen ein, [exit] um abzubrechen: '
-			}, 'greet': {
-				'en': 'hello {0}! welcome to the chat. type [help] for command overview.\nthe chat will start with the latest {1} contributions. current users are {2}.\nstarting any moment...',
-				'de': 'hallo {0}! willkommen im chat. gib [help] für eine befehlsübersicht ein.\nder chat startet mit den letzten {1} beiträgen. aktuelle nutzer sind {2}.\ngleich geht es los...'
+			'clear': {
+				'en': 'all contributions being deleted',
+				'de': 'alle beiträge gelöscht'
 			}, 'goodbye': {
 				'en': 'goodbye!',
 				'de': 'tschüß!'
+			}, 'greet': {
+				'en': 'hello {0}! welcome to the chat. type [help] for command overview.\nthe chat will start with the latest {1} contributions. current users are {2}.\nstarting any moment...',
+				'de': 'hallo {0}! willkommen im chat. gib [help] für eine befehlsübersicht ein.\nder chat startet mit den letzten {1} beiträgen. aktuelle nutzer sind {2}.\ngleich geht es los...'
+			}, 'help': {
+				'en': '''[clear]    to truncate database - affects all users!
+[exit]     to quit
+[interval] to change refresh interval
+[lang]     to change language
+[name]     to change your name
+[notify]   to toggle notification on new messages
+[reset]    to delete config file and use default settings
+[save]     to save current settings for next start 
+[users]    to show list of currently active users''',
+				'de': '''[clear]    um datenbank zu leeren - betrifft alle nutzer!
+[exit]     um zu beenden
+[interval] um die aktualisierungsrate zu ändern
+[lang]     um die sprache zu ändern
+[name]     um deinen namen zu ändern
+[notify]   um benachrichtigung bei neuen nachrichten an- oder ausschalten
+[reset]    um konfigurationsdatei zu löschen und standardeinstellungen zu verwenden
+[save]     um aktuelle einstellungen für den nächsten programmstart zu speichern
+[users]    um eine liste der aktiven nutzer anzuzeigen'''
+			}, 'interval': {
+				'en': 'enter seconds to refresh (1-10):',
+				'de': 'gib sekunden zur aktualisierung ein (1-10):'
 			}, 'joined': {
 				'en': 'joined the chat',
 				'de': 'hat den chat betreten'
-			}, 'left': {
-				'en': 'left the chat',
-				'de': 'hat den chat verlassen'
-			}, 'timeout': {
-				'en': ' because of timeout',
-				'de': ' weil die zeit ablief'
-			}, 'clear': {
-				'en': 'all contributions being deleted',
-				'de': 'alle beiträge gelöscht'
 			}, 'lang': {
 				'en': 'supported languages are ',
 				'de': 'unterstützte sprachen sind '
+			}, 'left': {
+				'en': 'left the chat',
+				'de': 'hat den chat verlassen'
 			}, 'name':{
-				'en': 'enter new name: ',
-				'de': 'neuen namen eingeben: '
+				'en': 'enter new name:',
+				'de': 'neuen namen eingeben:'
 			}, 'nametaken':{
 				'en': 'name already taken',
 				'de': 'name bereits belegt'
 			}, 'notify': {
 				'en': 'notifications are now {0}',
 				'de': 'benachrichtigungen sind nun {0}'
-			}, 'on': {
-				'en': 'turned on',
-				'de': 'eingeschaltet'
 			}, 'off': {
 				'en': 'turned off',
 				'de': 'ausgeschaltet'
-			}, 'help': {
-				'en': '''[clear] to truncate database - affects all users!
-[exit] to quit
-[lang] to change language
-[name] to change your name
-[notify] to toggle notification on new messages
-[users] to show list of currently active users''',
-				'de': '''[clear] um datenbank zu leeren - betrifft alle nutzer!
-[exit] um zu beenden
-[lang] um die sprache zu ändern
-[name] um deinen namen zu ändern
-[notify] um benachrichtigung bei neuen nachrichten an- oder ausschalten
-[users] um eine liste der aktiven nutzer anzuzeigen'''
+			}, 'on': {
+				'en': 'turned on',
+				'de': 'eingeschaltet'
+			}, 'reset': {
+				'en': 'settings restored to default',
+				'de': 'einstellungen auf standard zurückgesetzt'
+			}, 'save': {
+				'en': 'settings saved',
+				'de': 'einstellungen gespeichert'
+			}, 'setname': {
+				'en': 'enter your name, [exit] to quit:',
+				'de': 'bitte gib deinen namen ein, [exit] um abzubrechen:'
+			}, 'timeout': {
+				'en': ' because of timeout',
+				'de': ' weil die zeit ablief'
 			}
 		}
 
@@ -114,6 +130,27 @@ class anarchychat:
 			self.connection.commit()
 		if self.login():
 			self.start()
+
+	def ini(self, action):
+		if action == 'put':
+			with open('anarchychat.json', 'w', newline = '', encoding = 'utf8') as file:
+				ini = {}
+				# export properties according to default ini
+				for key in self.defaultini:
+					ini[key] = getattr(self, key)
+				json.dump(ini, file, ensure_ascii = False, indent = 4)
+		elif action == 'get':
+			try:
+				with open('anarchychat.json', 'r') as jsonfile:
+					ini = json.loads(jsonfile.read().replace('\n', ''))
+			except:
+				ini = self.defaultini
+			# set attributes according to config file or default ini, except current user name 
+			for key in ini:
+				setattr(self, key, ini[key])
+		elif action == 'delete':
+			if os.path.exists("anarchychat.json"):
+				os.remove("anarchychat.json")			
 
 	def login(self):
 		# set username
@@ -248,6 +285,12 @@ class anarchychat:
 		elif message.lower() == '[help]':
 			print(self.colorize(self.lang('help'), Fore.GREEN))
 			return True
+		elif message.lower() == '[interval]':
+			print(self.colorize(self.lang('interval'), Fore.GREEN))
+			select=int(input('> '))
+			if 0 < select < 11:
+				self.interval = select
+			return True
 		elif message.lower() == '[lang]':
 			supported = list(self.languageChunks['lang'].keys())
 			print(self.colorize(self.lang('lang') +  ', '.join(supported) + ': ', Fore.GREEN))
@@ -267,6 +310,15 @@ class anarchychat:
 		elif message.lower() == '[notify]':
 			self.notify = not self.notify
 			print(self.colorize(self.lang('notify', self.lang('on') if self.notify else self.lang('off')), Fore.GREEN))
+			return True
+		elif message.lower() == '[reset]':
+			self.ini('delete')
+			self.ini('get')
+			print(self.colorize(self.lang('reset'), Fore.GREEN))
+			return True
+		elif message.lower() == '[save]':
+			self.ini('put')
+			print(self.colorize(self.lang('save'), Fore.GREEN))
 			return True
 		elif message.lower() == '[users]':
 			print(self.colorize(','.join(self.ping(self.connection, 'get')), Fore.GREEN))
@@ -292,4 +344,4 @@ class anarchychat:
 
 if __name__ == '__main__':
 	print(HELLO)
-	chat = anarchychat(INI)
+	chat = anarchychat(DEFAULT)
