@@ -132,9 +132,7 @@ def put_recent(user, message):
 	# insert input and delete all older entries 
 	global CONNECTION
 	global DBLIMIT
-	escape=['\\', '\'', '\"']
-	for e in escape:
-		message = message.replace(e, '\\' + e)
+	message = message.replace('\'','\'\'')
 
 	CONNECTION.execute('''INSERT INTO CHAT (ID, NAME, TIME, MESSAGE) VALUES
 		(NULL, '{0}', '{1}', '{2}');'''.format(user, datetime.datetime.now().strftime('%d.%m.%y %H:%M:%S'), message))
