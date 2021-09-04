@@ -8,6 +8,7 @@ import winsound
 from colorama import Fore, Style, init
 import psutil
 import os
+from win10toast import ToastNotifier
 
 HELLO = '''
              _       _
@@ -60,26 +61,26 @@ class anarchychat:
 			}, 'name':{
 				'en': 'enter new name: ',
 				'de': 'neuen namen eingeben: '
-			}, 'sound': {
-				'en': 'sound is now {0}',
-				'de': 'ton ist nun {0}'
+			}, 'notify': {
+				'en': 'notifications are now {0}',
+				'de': 'benachrichtigungen sind nun {0}'
 			}, 'on': {
-				'en': 'on',
+				'en': 'turned on',
 				'de': 'eingeschaltet'
 			}, 'off': {
-				'en': 'off',
+				'en': 'turned off',
 				'de': 'ausgeschaltet'
 			}, 'help': {
 				'en': '''[exit] to quit
 [clear] to truncate database - affects all users!
 [lang] to change language
 [name] to change your name
-[sound] toggle sound on new messages''',
+[notify] toggle notification on new messages''',
 				'de': '''[exit] um zu beenden
 [clear] um datenbank zu leeren - betrifft alle nutzer!
 [lang] um die sprache zu ändern
 [name] um deinen namen zu ändern
-[sound] ton bei neuen nachrichten an oder aus'''
+[notify] benachrichtigung bei neuen nachrichten an- oder ausschalten'''
 			}
 		}
 
@@ -141,8 +142,9 @@ class anarchychat:
 					print ('\r{0} | {1}: {2}'.format(result[2], (self.colorize(result[1], Fore.YELLOW) if result[1] == self.user else result[1]), result[3]))
 					latestid = result[0]
 					latestuser = result[1]
-				if self.notify and latestuser != self.user:
-					winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
+					latestmsg = {'title': result[1], 'msg': result[3]}
+				if latestuser != self.user:
+					self.notification(latestmsg)
 				print('\r> ', end = '')
 			time.sleep(self.interval)
 
@@ -199,9 +201,9 @@ class anarchychat:
 			if len(select.strip()):
 				self.user = select
 			return True
-		elif message.lower() == '[sound]':
+		elif message.lower() == '[notify]':
 			self.notify = not self.notify
-			print (self.colorize(self.lang('sound', self.lang('on') if self.notify else self.lang('off')), Fore.GREEN))
+			print (self.colorize(self.lang('notify', self.lang('on') if self.notify else self.lang('off')), Fore.GREEN))
 			return True
 		else:
 			terminalwidth, terminalheight = shutil.get_terminal_size(0)
@@ -213,6 +215,15 @@ class anarchychat:
 			if len(message.strip()):
 				self.post(message)
 			return True
+
+	def notification(self, msg):
+		# notification handling as an easily adaptable method for your convenience 
+		if self.notify:
+			if not hasattr(self, 'toast'):
+				self.toast = ToastNotifier()
+			# winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
+			self.toast.show_toast(msg['title'], msg['msg'], threaded=True,
+                   icon_path=None, duration=3)
 
 if __name__ == '__main__':
 	print(HELLO)
