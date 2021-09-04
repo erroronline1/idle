@@ -22,6 +22,12 @@ serves to automatically download files according to linked ressources on website
 ### proxyping
 this proof-of-concept retrieves lists of proxies and user-agents by pattern matching given websites. then it calls the specified url using the list of proxies and random user-agents. the proxies from the samples are not very reliable on connection or might need longer timeouts resulting in elongated runtime of the script. but it is quite dynamic.
 
+### pychat
+a stupid little chat where the one script handles everything without the necessity of a server script. all you need is to define the location for the sqlite-database-file. if you store this within a network-folder, e.g. an nas-drive, everyone within the local network can access it, thus being able to participate in the chat. this originated from restricting online-access for the children rendering messenger services useless after the timeout. using pychat it might still be possible to reach out. sure - i could just go upstairs and talk to them though...
+this is by no means a bulletproof thing - yet. all entries above the DBLIMIT-count will be deleted. some commands affect every user. notification-sounds on new messages from other users are implemented windows-specific.
+
+works quite well in vsc-console and cmd as a py-script. not quite in idle and powershell though.
+
 ### rename
 rename all files in specified folder. choose if you want to rename all the same (as in file(0).mp3, file(1).mp3, ...), strip parts of filenames (as in file_1_security_copy.mp3, file_2_security_copy.mp3, ...), add something before overwriting while copying into folder (as in file_1_a.mp3, file_2_a.mp3, file_3_a.mp3)
 
