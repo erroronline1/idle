@@ -13,6 +13,11 @@ import os
 import winsound
 from win10toast import ToastNotifier
 
+'''
+issues:
+for some reason the user will not be properly deleted from the ping-table on exit, resulting in a name conflict on immediate relogin 
+'''
+
 HELLO = '''
                      _           _       _
  ___ ___ ___ ___ ___| |_ _ _ ___| |_ ___| |_
@@ -35,7 +40,7 @@ DEFAULT = { # default settings
 
 class anarchychat:
 	def __init__(self, ini):
-		self.database = self.dblimit = self.interval = self.active = self.user = self.language = self.title = 'i like you too, linter!'
+		self.database = self.dblimit = self.interval = self.active = self.user = self.language = self.title = None # i like you too, linter
 
 		self.defaultini = ini
 		self.notify = True
@@ -147,14 +152,15 @@ class anarchychat:
 				ini = self.defaultini
 			# set attributes according to config file or default ini, except current user name 
 			for key in ini:
-				setattr(self, key, ini[key])
+				if ini == self.defaultini and key != 'user':
+					setattr(self, key, ini[key])
 		elif action == 'delete':
 			if os.path.exists("anarchychat.json"):
 				os.remove("anarchychat.json")			
 
 	def login(self):
 		# set username
-		while not self.user:
+		while not self.user or self.user in self.ping(self.connection, 'get'):
 			print(self.colorize(self.lang('setname'), Fore.GREEN))
 			select = str(input('> ')).strip()
 			if select in self.ping(self.connection, 'get'):
@@ -230,7 +236,7 @@ class anarchychat:
 		self.connection.executescript('''DELETE FROM CHAT; VACUUM;''')
 		self.connection.commit()
 
-	def ping(self, conn, method, fields=None):
+	def ping(self, conn, method, fields = None):
 		if method == 'put':
 			conn.execute('''INSERT OR REPLACE INTO PING (NAME, TOUCH) VALUES ('{0}', strftime('%s', 'now'));'''.format(self.user))
 			conn.commit()
@@ -245,7 +251,7 @@ class anarchychat:
 					out.append(result[0])
 			return out
 		elif method == 'delete':
-			if not fields:
+			if fields is None:
 				cursor = conn.cursor()
 				cursor.execute('''SELECT NAME FROM PING WHERE (strftime('%s', 'now') - TOUCH) > {0};'''.format(self.active))
 				results = cursor.fetchall()
@@ -321,7 +327,7 @@ class anarchychat:
 			print(self.colorize(self.lang('save'), Fore.GREEN))
 			return True
 		elif message.lower() == '[users]':
-			print(self.colorize(','.join(self.ping(self.connection, 'get')), Fore.GREEN))
+			print(self.colorize(', '.join(self.ping(self.connection, 'get')), Fore.GREEN))
 			return True
 		else:
 			terminalwidth, terminalheight = shutil.get_terminal_size(0)
