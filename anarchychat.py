@@ -15,7 +15,8 @@ from win10toast import ToastNotifier
 
 '''
 issues:
-for some reason the user will not be properly deleted from the ping-table on exit, resulting in a name conflict on immediate relogin 
+due to asynchronicity and probably improper network timings the user occasionally will not be properly deleted from the ping-table on exit,
+resulting in a temporarily name conflict on immediate relogin 
 '''
 
 HELLO = '''
@@ -23,7 +24,7 @@ HELLO = '''
  ___ ___ ___ ___ ___| |_ _ _ ___| |_ ___| |_
 | .'|   | .'|  _|  _|   | | |  _|   | .'|  _|
 |__,|_|_|__,|_| |___|_|_|_  |___|_|_|__,|_|
-                        |___|                 built 20210904
+                        |___|                 built 20210905
 
 by error on line 1 (erroronline.one)
 '''
@@ -33,9 +34,9 @@ DEFAULT = { # default settings
 	'dblimit': 25, # sanitize database from all entries where ID < MAX(ID) - DBLIMIT
 	'interval': 3, # seconds interval to fetch contribution updates, likely slightly limits read/write traffic on the drive
 	'active': 30, # seconds to expire before a user is considered logged off. must be more than update interval
-	'user': None, # initiate global user name, changeable
-	'language': 'en', # default language, changeable
-	'title':'AnarchyChat' # app title to display e.g. in notification
+	'user': None, # default user name
+	'language': 'en', # default language
+	'title': 'AnarchyChat' # app title to display e.g. in notification
 }
 
 class anarchychat:
@@ -64,7 +65,7 @@ class anarchychat:
 [name]     to change your name
 [notify]   to toggle notification on new messages
 [reset]    to delete config file and use default settings
-[save]     to save current settings for next start 
+[save]     to save current settings for next start
 [users]    to show list of currently active users''',
 				'de': '''[clear]    um datenbank zu leeren - betrifft alle nutzer!
 [exit]     um zu beenden
@@ -121,7 +122,7 @@ class anarchychat:
 		self.connection = sqlite3.connect(self.database)
 		c = self.connection.cursor()
 		c.execute('''SELECT count(name) FROM sqlite_master WHERE type='table' AND name='CHAT';''')
-		if not c.fetchone()[0] :
+		if not c.fetchone()[0]:
 			self.connection.executescript('''
 				CREATE TABLE CHAT
 				(ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -139,8 +140,8 @@ class anarchychat:
 	def ini(self, action):
 		if action == 'put':
 			with open('anarchychat.json', 'w', newline = '', encoding = 'utf8') as file:
+				# export properties according to default ini keys
 				ini = {}
-				# export properties according to default ini
 				for key in self.defaultini:
 					ini[key] = getattr(self, key)
 				json.dump(ini, file, ensure_ascii = False, indent = 4)
@@ -159,7 +160,7 @@ class anarchychat:
 				os.remove("anarchychat.json")			
 
 	def login(self):
-		# set username
+		# set username if none or already in use, or exit
 		while not self.user or self.user in self.ping(self.connection, 'get'):
 			print(self.colorize(self.lang('setname'), Fore.GREEN))
 			select = str(input('> ')).strip()
@@ -178,11 +179,10 @@ class anarchychat:
 		get_contents = threading.Thread(target = self.fetch)
 		get_contents.daemon = True
 		get_contents.start()
-
 		self.post(self.colorize(self.lang('joined'), Fore.GREEN))
 		while True:
 			try:
-				message = str(input('\r> '))
+				message = str(input('\r> ')).strip()
 				if not self.filterinput(message):
 					self.exit()
 			except KeyboardInterrupt:
@@ -336,7 +336,7 @@ class anarchychat:
 			for i in range(0, math.ceil(len(message) / terminalwidth)):
 				terminalheight = terminalheight + i # sometimes linter can be annoying...
 				print('\033[A' + (' ' * (terminalwidth - 2)) + '\033[A')
-			if len(message.strip()):
+			if len(message):
 				self.post(message)
 			return True
 
