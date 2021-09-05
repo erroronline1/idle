@@ -30,7 +30,7 @@ by error on line 1 (erroronline.one)
 '''
 
 DEFAULT = { # default settings
-	'database': '\\\\192.168.178.26\\Public\\anarchychat.db', # e.g. on some network path
+	'database': '\\\\fritz.box\\FRITZ.NAS\\anarchychat.db', #'\\\\192.168.178.26\\Public\\anarchychat.db', # e.g. on some network path
 	'dblimit': 25, # sanitize database from all entries where ID < MAX(ID) - DBLIMIT
 	'interval': 3, # seconds interval to fetch contribution updates, likely slightly limits read/write traffic on the drive
 	'active': 30, # seconds to expire before a user is considered logged off. must be more than update interval
@@ -47,6 +47,8 @@ class anarchychat:
 		self.notify = True
 		# set attributes according to config file or default ini
 		self.ini('get')
+		# these are the available language chunks that can be extended as required
+		# make sure the commands are registered appropriate in the command-method
 		self.languageChunks = {
 			'clear': {
 				'en': 'all contributions being deleted',
@@ -55,27 +57,33 @@ class anarchychat:
 				'en': 'goodbye!',
 				'de': 'tschüß!'
 			}, 'greet': {
-				'en': 'hello {0}! welcome to the chat. type [help] for command overview.\nthe chat will start with the latest {1} contributions. current users are {2}.\nstarting any moment...',
-				'de': 'hallo {0}! willkommen im chat. gib [help] für eine befehlsübersicht ein.\nder chat startet mit den letzten {1} beiträgen. aktuelle nutzer sind {2}.\ngleich geht es los...'
+				'en': 'hello {0}! welcome to the chat. type [help] (with brackets) for command overview.\nthe chat will start with the latest {1} contributions. current users are {2}.\nstarting any moment...',
+				'de': 'hallo {0}! willkommen im chat. gib [hilfe] (mit klammern) für eine befehlsübersicht ein.\nder chat startet mit den letzten {1} beiträgen. aktuelle nutzer sind {2}.\ngleich geht es los...'
 			}, 'help': {
-				'en': '''[clear]    to truncate database - affects all users!
+				'en': '''available commands have to be typed with brackets:
+
+[clear]    to truncate database - affects all users!
 [exit]     to quit
 [interval] to change refresh interval
-[lang]     to change language
+[language] to change language
 [name]     to change your name
 [notify]   to toggle notification on new messages
 [reset]    to delete config file and use default settings
 [save]     to save current settings for next start
-[users]    to show list of currently active users''',
-				'de': '''[clear]    um datenbank zu leeren - betrifft alle nutzer!
-[exit]     um zu beenden
-[interval] um die aktualisierungsrate zu ändern
-[lang]     um die sprache zu ändern
-[name]     um deinen namen zu ändern
-[notify]   um benachrichtigung bei neuen nachrichten an- oder ausschalten
-[reset]    um konfigurationsdatei zu löschen und standardeinstellungen zu verwenden
-[save]     um aktuelle einstellungen für den nächsten programmstart zu speichern
-[users]    um eine liste der aktiven nutzer anzuzeigen'''
+[users]    to show list of currently active users
+''',
+				'de': '''verfügbare befehle müssen mit klammern eingegeben werden:
+
+[aktualisierung]   um die aktualisierungsrate zu ändern
+[beenden]          um zu beenden
+[benachrichtigung] um benachrichtigung bei neuen nachrichten an- oder ausschalten
+[löschen]          um datenbank zu leeren - betrifft alle nutzer!
+[name]             um deinen namen zu ändern
+[nutzer]           um eine liste der aktiven nutzer anzuzeigen
+[speichern]        um aktuelle einstellungen für den nächsten programmstart zu speichern
+[sprache]          um die sprache zu ändern
+[zurücksetzen]     um konfigurationsdatei zu löschen und standardeinstellungen zu verwenden
+'''
 			}, 'interval': {
 				'en': 'enter seconds to refresh (1-10):',
 				'de': 'gib sekunden zur aktualisierung ein (1-10):'
@@ -92,8 +100,8 @@ class anarchychat:
 				'en': 'enter new name:',
 				'de': 'neuen namen eingeben:'
 			}, 'nametaken':{
-				'en': 'name already taken',
-				'de': 'name bereits belegt'
+				'en': 'name already taken. you may wait about {0} seconds if this is your name though.',
+				'de': 'name bereits belegt. du kannst auch etwa {0} sekunden warten, wenn es doch deiner ist.'
 			}, 'notify': {
 				'en': 'notifications are now {0}',
 				'de': 'benachrichtigungen sind nun {0}'
@@ -110,8 +118,8 @@ class anarchychat:
 				'en': 'settings saved',
 				'de': 'einstellungen gespeichert'
 			}, 'setname': {
-				'en': 'enter your name, [exit] to quit:',
-				'de': 'bitte gib deinen namen ein, [exit] um abzubrechen:'
+				'en': 'enter your name, [exit] (with brackets) to quit:',
+				'de': 'bitte gib deinen namen ein, [exit] (mit klammern) um abzubrechen:'
 			}, 'timeout': {
 				'en': ' because of timeout',
 				'de': ' weil die zeit ablief'
@@ -165,7 +173,7 @@ class anarchychat:
 			print(self.colorize(self.lang('setname'), Fore.GREEN))
 			select = str(input('> ')).strip()
 			if select in self.ping(self.connection, 'get'):
-				print(self.colorize(self.lang('nametaken'), Fore.GREEN))
+				print(self.colorize(self.lang('nametaken', self.active), Fore.GREEN))
 			elif len(select):
 				self.user = select
 		if self.user.lower() != '[exit]':
@@ -183,7 +191,7 @@ class anarchychat:
 		while True:
 			try:
 				message = str(input('\r> ')).strip()
-				if not self.filterinput(message):
+				if not self.command(message):
 					self.exit()
 			except KeyboardInterrupt:
 				self.exit()
@@ -279,54 +287,54 @@ class anarchychat:
 		else:
 			return '*UNDEFINED LANGUAGE FOR {0}*'.format(chunk)
 		
-	def filterinput(self, message):
+	def command(self, message):
 		# filter and conditionally execute commands
-		if message.lower() == '[clear]':
+		if message.lower() in ('[clear]', '[löschen]'):
 			print(self.colorize(self.lang('clear'), Fore.GREEN))
 			self.clearDB()
 			return True
-		elif message.lower() == '[exit]':
+		elif message.lower() in ('[exit]', '[beenden]'):
 			self.post(self.colorize(self.lang('left'), Fore.GREEN))
 			return False
-		elif message.lower() == '[help]':
+		elif message.lower() in ('[help]', '[hilfe]'):
 			print(self.colorize(self.lang('help'), Fore.GREEN))
 			return True
-		elif message.lower() == '[interval]':
+		elif message.lower() in ('[interval]', '[aktualisierung]'):
 			print(self.colorize(self.lang('interval'), Fore.GREEN))
 			select=int(input('> '))
 			if 0 < select < 11:
 				self.interval = select
 			return True
-		elif message.lower() == '[lang]':
+		elif message.lower() in ('[language]', '[sprache]'):
 			supported = list(self.languageChunks['lang'].keys())
 			print(self.colorize(self.lang('lang') +  ', '.join(supported) + ': ', Fore.GREEN))
 			select = str(input('> ')).lower()
 			if select in supported:
 				self.language = select
 			return True
-		elif message.lower() == '[name]':
+		elif message.lower() in ('[name]', '[name]'):
 			print(self.colorize(self.lang('name'), Fore.GREEN))
 			select = str(input('> ')).strip()
 			if select in self.ping(self.connection, 'get'):
-				print(self.colorize(self.lang('nametaken'), Fore.GREEN))
+				print(self.colorize(self.lang('nametaken', self.active), Fore.GREEN))
 			elif len(select):
 				self.ping(self.connection, 'delete', {'NAME': self.user})
 				self.user = select
 			return True
-		elif message.lower() == '[notify]':
+		elif message.lower() in ('[notify]', '[benachrichtigung]'):
 			self.notify = not self.notify
 			print(self.colorize(self.lang('notify', self.lang('on') if self.notify else self.lang('off')), Fore.GREEN))
 			return True
-		elif message.lower() == '[reset]':
+		elif message.lower() in ('[reset]', '[zurücksetzen]'):
 			self.ini('delete')
 			self.ini('get')
 			print(self.colorize(self.lang('reset'), Fore.GREEN))
 			return True
-		elif message.lower() == '[save]':
+		elif message.lower() in ('[save]', '[speichern]'):
 			self.ini('put')
 			print(self.colorize(self.lang('save'), Fore.GREEN))
 			return True
-		elif message.lower() == '[users]':
+		elif message.lower() in ('[users]', '[nutzer]'):
 			print(self.colorize(', '.join(self.ping(self.connection, 'get')), Fore.GREEN))
 			return True
 		else:
