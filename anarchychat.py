@@ -162,7 +162,8 @@ class anarchychat:
 			# set attributes according to config file or default ini, except current user name 
 			for key in ini:
 				if ini == self.defaultini and key != 'user':
-					setattr(self, key, ini[key])
+					continue
+				setattr(self, key, ini[key])
 		elif action == 'delete':
 			if os.path.exists("anarchychat.json"):
 				os.remove("anarchychat.json")			
