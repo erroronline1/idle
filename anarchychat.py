@@ -5,7 +5,7 @@ import datetime
 import shutil
 import math
 import json
-
+from pathlib import Path
 from colorama import Fore, Style, init
 import psutil
 import os
@@ -30,7 +30,7 @@ by error on line 1 (erroronline.one)
 '''
 
 DEFAULT = { # default settings
-	'database': '\\\\fritz.box\\FRITZ.NAS\\anarchychat.db', #'\\\\192.168.178.26\\Public\\anarchychat.db', # e.g. on some network path
+	'database': 'anarchychat.db', #'\\\\fritz.box\\FRITZ.NAS\\anarchychat.db', #'\\\\192.168.178.26\\Public\\anarchychat.db', # e.g. on some network path
 	'dblimit': 25, # sanitize database from all entries where ID < MAX(ID) - DBLIMIT
 	'interval': 3, # seconds interval to fetch contribution updates, likely slightly limits read/write traffic on the drive
 	'active': 30, # seconds to expire before a user is considered logged off. must be more than update interval
@@ -146,8 +146,9 @@ class anarchychat:
 			self.start()
 
 	def ini(self, action):
+		home = str(Path.home())
 		if action == 'put':
-			with open('anarchychat.json', 'w', newline = '', encoding = 'utf8') as file:
+			with open(home + '/anarchychat.json', 'w', newline = '', encoding = 'utf8') as file:
 				# export properties according to default ini keys
 				ini = {}
 				for key in self.defaultini:
@@ -155,7 +156,7 @@ class anarchychat:
 				json.dump(ini, file, ensure_ascii = False, indent = 4)
 		elif action == 'get':
 			try:
-				with open('anarchychat.json', 'r') as jsonfile:
+				with open(home + '/anarchychat.json', 'r') as jsonfile:
 					ini = json.loads(jsonfile.read().replace('\n', ''))
 			except:
 				ini = self.defaultini
@@ -165,8 +166,8 @@ class anarchychat:
 					continue
 				setattr(self, key, ini[key])
 		elif action == 'delete':
-			if os.path.exists("anarchychat.json"):
-				os.remove("anarchychat.json")			
+			if os.path.exists(home + '/anarchychat.json'):
+				os.remove(home + '/anarchychat.json')
 
 	def login(self):
 		# set username if none or already in use, or exit
