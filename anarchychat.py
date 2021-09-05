@@ -161,7 +161,7 @@ class anarchychat:
 				ini = self.defaultini
 			# set attributes according to config file or default ini, except current user name 
 			for key in ini:
-				if ini == self.defaultini and key != 'user':
+				if ini == self.defaultini and key == 'user':
 					continue
 				setattr(self, key, ini[key])
 		elif action == 'delete':
