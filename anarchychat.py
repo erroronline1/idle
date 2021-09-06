@@ -6,9 +6,10 @@ import shutil
 import math
 import json
 from pathlib import Path
+import os
+
 from colorama import Fore, Style, init
 import psutil
-import os
 
 import winsound
 from win10toast import ToastNotifier
@@ -16,7 +17,10 @@ from win10toast import ToastNotifier
 '''
 issues:
 due to asynchronicity and probably improper network timings the user occasionally will not be properly deleted from the ping-table on exit,
-resulting in a temporarily name conflict on immediate relogin 
+resulting in a temporarily name conflict on immediate relogin
+
+todo: reconnect on serveerror? try catch?
+
 '''
 
 HELLO = '''
@@ -30,7 +34,7 @@ by error on line 1 (erroronline.one)
 '''
 
 DEFAULT = { # default settings
-	'database': 'anarchychat.db', #'\\\\fritz.box\\FRITZ.NAS\\anarchychat.db', #'\\\\192.168.178.26\\Public\\anarchychat.db', # e.g. on some network path
+	'database': '\\\\fritz.box\\FRITZ.NAS\\anarchychat.db', #'\\\\192.168.178.26\\Public\\anarchychat.db', # e.g. on some network path
 	'dblimit': 25, # sanitize database from all entries where ID < MAX(ID) - DBLIMIT
 	'interval': 3, # seconds interval to fetch contribution updates, likely slightly limits read/write traffic on the drive
 	'active': 30, # seconds to expire before a user is considered logged off. must be more than update interval
@@ -45,6 +49,8 @@ class anarchychat:
 
 		self.defaultini = ini
 		self.notify = True
+		self.latestid = 0
+		self.errorcounter = {'start': int(time.time()), 'count': 0}
 		# set attributes according to config file or default ini
 		self.ini('get')
 		# these are the available language chunks that can be extended as required
@@ -53,6 +59,9 @@ class anarchychat:
 			'clear': {
 				'en': 'all contributions being deleted',
 				'de': 'alle beiträge gelöscht'
+			}, 'databaseerror': {
+				'en': 'sorry, that failed due to some database or connection error. please try again.\n{0} errors within timespan of {1}, restart if necessary.',
+				'de': 'das hat leider wegen eines datenbank- oder -verbindungsfehlers nicht funktioniert. bitte versuche es nochmal.\n{0} fehler innerhalb von {1}, starte gegebenenfalls neu.'
 			}, 'goodbye': {
 				'en': 'goodbye!',
 				'de': 'tschüß!'
@@ -127,11 +136,12 @@ class anarchychat:
 		}
 
 		# check if table exists, otherwise create
-		self.connection = sqlite3.connect(self.database)
-		c = self.connection.cursor()
-		c.execute('''SELECT count(name) FROM sqlite_master WHERE type='table' AND name='CHAT';''')
-		if not c.fetchone()[0]:
-			self.connection.executescript('''
+		try:
+			self.connection = sqlite3.connect(self.database)
+			c = self.connection.cursor()
+			c.execute('''SELECT count(name) FROM sqlite_master WHERE type='table' AND name='CHAT';''')
+			if not c.fetchone()[0]:
+				self.connection.executescript('''
 				CREATE TABLE CHAT
 				(ID INTEGER PRIMARY KEY AUTOINCREMENT,
 				NAME TINYTEXT NOT NULL,
@@ -141,7 +151,9 @@ class anarchychat:
 				CREATE TABLE PING
 				(NAME TINYTEXT UNIQUE,
 				TOUCH TINYTEXT);''')
-			self.connection.commit()
+				self.connection.commit()
+		except Exception as error:
+			self.errorhandler(error, True)
 		if self.login():
 			self.start()
 
@@ -172,24 +184,25 @@ class anarchychat:
 	def login(self):
 		# set username if none or already in use, or exit
 		while not self.user or self.user in self.ping(self.connection, 'get'):
-			print(self.colorize(self.lang('setname'), Fore.GREEN))
+			print(self.colorize(self.lang('setname'), Fore.CYAN))
 			select = str(input('> ')).strip()
 			if select in self.ping(self.connection, 'get'):
-				print(self.colorize(self.lang('nametaken', self.active), Fore.GREEN))
+				print(self.colorize(self.lang('nametaken', self.active), Fore.CYAN))
 			elif len(select):
 				self.user = select
 		if self.user.lower() != '[exit]':
-			print(self.colorize(self.lang('greet', self.user, self.dblimit, ', '.join(self.ping(self.connection, 'get'))), Fore.GREEN))
+			print(self.colorize(self.lang('greet', self.user, self.dblimit, ', '.join(self.ping(self.connection, 'get'))), Fore.CYAN))
 			time.sleep(3)
 			return True
 		self.exit()
 	
 	def start(self):
 		# start new thread for simultaneously retrieving and posting contributions and wait for input
-		get_contents = threading.Thread(target = self.fetch)
-		get_contents.daemon = True
-		get_contents.start()
-		self.post(self.colorize(self.lang('joined'), Fore.GREEN))
+		self.fetchProcessRun = True
+		self.fetchProcess = threading.Thread(target = self.fetch)
+		self.fetchProcess.daemon = True
+		self.fetchProcess.start()
+		self.post(self.colorize(self.lang('joined'), Fore.CYAN))
 		while True:
 			try:
 				message = str(input('\r> ')).strip()
@@ -200,56 +213,84 @@ class anarchychat:
 
 	def exit(self):
 		# delete user from active table, close database connection and exit program
-		self.ping(self.connection, 'delete', {'NAME': self.user})
-		print(self.colorize(self.lang('goodbye'), Fore.GREEN))
-		self.connection.close()
+		if hasattr(self, 'connection'):
+			self.ping(self.connection, 'delete', {'NAME': self.user})
+			self.connection.close()
+		print(self.colorize(self.lang('goodbye'), Fore.CYAN))
 		time.sleep(2)
 		exit()
+
+	def errorhandler(self, error, quit = False):
+		self.errorcounter['count'] += 1
+		runtime = int(time.time()) - self.errorcounter['start']
+		runtime = datetime.timedelta(seconds = runtime)
+		emsg=str(error.message if hasattr(error, 'message') else error)
+		print(self.colorize(self.lang('databaseerror', self.errorcounter['count'], runtime) + ' ' + emsg + '\n', Fore.RED))
+
+		if not quit:
+			self.fetchProcessRun = False
+			self.fetchProcess.join()
+
+			self.connection.close()
+			self.connection = sqlite3.connect(self.database)
+			self.start()
+		self.exit()
 
 	def fetch(self):
 		# fetch the latest contributions every so many seconds, notify about new messages and tell about being still active 
 		# needs another connection for running in separate thread
-		fconnection = sqlite3.connect(self.database)
-		latestid = 0
-		while True:
-			cursor = fconnection.cursor()
-			cursor.execute('''SELECT * FROM CHAT WHERE ID > {0}'''.format(latestid))
-			results = cursor.fetchall()
-			if len(results):
-				for result in results:
-					print ('\r{0} | {1}: {2}'.format(result[2], (self.colorize(result[1], Fore.YELLOW) if result[1] == self.user else result[1]), result[3]))
-					latestid = result[0]
-					latestuser = result[1]
-					latestmsg = {'title': result[1], 'msg': result[3]}
-				if latestuser != self.user:
-					self.notification(latestmsg)
-				print('\r> ', end = '')
-			# ping your name to the active list
-			self.ping(fconnection, 'put')
-			time.sleep(self.interval)
+		self.fconnection = sqlite3.connect(self.database)
+		while self.fetchProcessRun:
+			try:
+				cursor = self.fconnection.cursor()
+				cursor.execute('''SELECT * FROM CHAT WHERE ID > {0}'''.format(self.latestid))
+				results = cursor.fetchall()
+				if len(results):
+					for result in results:
+						print ('\r{0} | {1}: {2}'.format(result[2], (self.colorize(result[1], Fore.YELLOW) if result[1] == self.user else result[1]), result[3]))
+						self.latestid = result[0]
+						latestuser = result[1]
+						latestmsg = {'title': result[1], 'msg': result[3]}
+					if latestuser != self.user:
+						self.notification(latestmsg)
+					print('\r> ', end = '')
+				# ping your name to the active list
+				self.ping(self.fconnection, 'put')
+				time.sleep(self.interval)
+			except Exception as error:
+				self.errorhandler(error)
+		self.fconnection.close()
 
 	def post(self, message, user = None):
 		# insert message and delete older entries 
 		message = message.replace('\'','\'\'')
-		self.connection.executescript('''
-			INSERT INTO CHAT (ID, NAME, TIME, MESSAGE) VALUES (NULL, '{0}', '{1}', '{2}');
-			DELETE FROM CHAT WHERE ID IN (SELECT ID FROM CHAT ORDER BY ID DESC LIMIT (SELECT COUNT(*) FROM CHAT) OFFSET {3});
-			'''.format(
-				user if user else self.user,
-				datetime.datetime.now().strftime('%d.%m.%y %H:%M:%S'),
-				message,
-				self.dblimit))
-		self.connection.commit()
-
+		try:
+			self.connection.executescript('''
+				INSERT INTO CHAT (ID, NAME, TIME, MESSAGE) VALUES (NULL, '{0}', '{1}', '{2}');
+				DELETE FROM CHAT WHERE ID IN (SELECT ID FROM CHAT ORDER BY ID DESC LIMIT (SELECT COUNT(*) FROM CHAT) OFFSET {3});
+				'''.format(
+					user if user else self.user,
+					datetime.datetime.now().strftime('%d.%m.%y %H:%M:%S'),
+					message,
+					self.dblimit))
+			self.connection.commit()
+		except Exception as e:
+			self.errorhandler(e)
 	def clearDB(self):
 		# truncate table
-		self.connection.executescript('''DELETE FROM CHAT; VACUUM;''')
-		self.connection.commit()
+		try:
+			self.connection.executescript('''DELETE FROM CHAT; VACUUM;''')
+			self.connection.commit()
+		except Exception as e:
+			self.errorhandler(e)
 
 	def ping(self, conn, method, fields = None):
 		if method == 'put':
-			conn.execute('''INSERT OR REPLACE INTO PING (NAME, TOUCH) VALUES ('{0}', strftime('%s', 'now'));'''.format(self.user))
-			conn.commit()
+			try:
+				conn.execute('''INSERT OR REPLACE INTO PING (NAME, TOUCH) VALUES ('{0}', strftime('%s', 'now'));'''.format(self.user))
+				conn.commit()
+			except Exception as e:
+				self.errorhandler(e)
 		elif method == 'get':
 			self.ping(conn, 'delete')
 			cursor = conn.cursor()
@@ -261,19 +302,21 @@ class anarchychat:
 					out.append(result[0])
 			return out
 		elif method == 'delete':
-			if fields is None:
-				cursor = conn.cursor()
-				cursor.execute('''SELECT NAME FROM PING WHERE (strftime('%s', 'now') - TOUCH) > {0};'''.format(self.active))
-				results = cursor.fetchall()
-				if len(results):
-					for result in results:
-						if result[0] != self.user:
-							self.post(self.colorize(self.lang('left') + self.lang('timeout'), Fore.GREEN), result[0])
-				conn.execute('''DELETE FROM PING WHERE (strftime('%s', 'now') - TOUCH) > {0};'''.format(self.active))
-			else:
-				conn.execute('''DELETE FROM PING WHERE {0}='{1}';'''.format(list(fields.keys())[0], fields[list(fields.keys())[0]]))
-			conn.commit()
-
+			try:
+				if fields is None:
+					cursor = conn.cursor()
+					cursor.execute('''SELECT NAME FROM PING WHERE (strftime('%s', 'now') - TOUCH) > {0};'''.format(self.active))
+					results = cursor.fetchall()
+					if len(results):
+						for result in results:
+							if result[0] != self.user:
+								self.post(self.colorize(self.lang('left') + self.lang('timeout'), Fore.CYAN), result[0])
+					conn.execute('''DELETE FROM PING WHERE (strftime('%s', 'now') - TOUCH) > {0};'''.format(self.active))
+				else:
+					conn.execute('''DELETE FROM PING WHERE {0}='{1}';'''.format(list(fields.keys())[0], fields[list(fields.keys())[0]]))
+				conn.commit()
+			except Exception as e:
+				self.errorhandler(e)
 	def colorize(self, str, col):
 		# occasionally fancy colors for outputs
 		# possible colours according to https://pypi.org/project/colorama/
@@ -292,52 +335,52 @@ class anarchychat:
 	def command(self, message):
 		# filter and conditionally execute commands
 		if message.lower() in ('[clear]', '[löschen]'):
-			print(self.colorize(self.lang('clear'), Fore.GREEN))
+			print(self.colorize(self.lang('clear'), Fore.CYAN))
 			self.clearDB()
 			return True
 		elif message.lower() in ('[exit]', '[beenden]'):
-			self.post(self.colorize(self.lang('left'), Fore.GREEN))
+			self.post(self.colorize(self.lang('left'), Fore.CYAN))
 			return False
 		elif message.lower() in ('[help]', '[hilfe]'):
-			print(self.colorize(self.lang('help'), Fore.GREEN))
+			print(self.colorize(self.lang('help'), Fore.CYAN))
 			return True
 		elif message.lower() in ('[interval]', '[aktualisierung]'):
-			print(self.colorize(self.lang('interval'), Fore.GREEN))
+			print(self.colorize(self.lang('interval'), Fore.CYAN))
 			select=int(input('> '))
 			if 0 < select < 11:
 				self.interval = select
 			return True
 		elif message.lower() in ('[language]', '[sprache]'):
 			supported = list(self.languageChunks['lang'].keys())
-			print(self.colorize(self.lang('lang') +  ', '.join(supported) + ': ', Fore.GREEN))
+			print(self.colorize(self.lang('lang') +  ', '.join(supported) + ': ', Fore.CYAN))
 			select = str(input('> ')).lower()
 			if select in supported:
 				self.language = select
 			return True
 		elif message.lower() in ('[name]', '[name]'):
-			print(self.colorize(self.lang('name'), Fore.GREEN))
+			print(self.colorize(self.lang('name'), Fore.CYAN))
 			select = str(input('> ')).strip()
 			if select in self.ping(self.connection, 'get'):
-				print(self.colorize(self.lang('nametaken', self.active), Fore.GREEN))
+				print(self.colorize(self.lang('nametaken', self.active), Fore.CYAN))
 			elif len(select):
 				self.ping(self.connection, 'delete', {'NAME': self.user})
 				self.user = select
 			return True
 		elif message.lower() in ('[notify]', '[benachrichtigung]'):
 			self.notify = not self.notify
-			print(self.colorize(self.lang('notify', self.lang('on') if self.notify else self.lang('off')), Fore.GREEN))
+			print(self.colorize(self.lang('notify', self.lang('on') if self.notify else self.lang('off')), Fore.CYAN))
 			return True
 		elif message.lower() in ('[reset]', '[zurücksetzen]'):
 			self.ini('delete')
 			self.ini('get')
-			print(self.colorize(self.lang('reset'), Fore.GREEN))
+			print(self.colorize(self.lang('reset'), Fore.CYAN))
 			return True
 		elif message.lower() in ('[save]', '[speichern]'):
 			self.ini('put')
-			print(self.colorize(self.lang('save'), Fore.GREEN))
+			print(self.colorize(self.lang('save'), Fore.CYAN))
 			return True
 		elif message.lower() in ('[users]', '[nutzer]'):
-			print(self.colorize(', '.join(self.ping(self.connection, 'get')), Fore.GREEN))
+			print(self.colorize(', '.join(self.ping(self.connection, 'get')), Fore.CYAN))
 			return True
 		else:
 			terminalwidth, terminalheight = shutil.get_terminal_size(0)
