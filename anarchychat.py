@@ -11,30 +11,22 @@ import os
 from colorama import Fore, Style, init
 import psutil
 
-import winsound
 from win10toast import ToastNotifier
-
-'''
-issues:
-due to asynchronicity and probably improper network timings the user occasionally will not be properly deleted from the ping-table on exit,
-resulting in a temporarily name conflict on immediate relogin
-
-todo: reconnect on serveerror? try catch?
-
-'''
 
 HELLO = '''
                      _           _       _
  ___ ___ ___ ___ ___| |_ _ _ ___| |_ ___| |_
 | .'|   | .'|  _|  _|   | | |  _|   | .'|  _|
 |__,|_|_|__,|_| |___|_|_|_  |___|_|_|__,|_|
-                        |___|                 built 20210905
+                        |___|                 built 20210907
 
 by error on line 1 (erroronline.one)
 '''
 
 DEFAULT = { # default settings
-	'database': '\\\\fritz.box\\FRITZ.NAS\\anarchychat.db', #'\\\\192.168.178.26\\Public\\anarchychat.db', # e.g. on some network path
+	# relative paths do not work!
+	# 'database': '\\\\fritz.box\\FRITZ.NAS\\anarchychat.db',
+	'database': '\\\\192.168.178.26\\Public\\anarchychat.db', # e.g. on some network path
 	'dblimit': 25, # sanitize database from all entries where ID < MAX(ID) - DBLIMIT
 	'interval': 3, # seconds interval to fetch contribution updates, likely slightly limits read/write traffic on the drive
 	'active': 30, # seconds to expire before a user is considered logged off. must be more than update interval
@@ -60,21 +52,21 @@ class anarchychat:
 				'en': 'all contributions being deleted',
 				'de': 'alle beiträge gelöscht'
 			}, 'databaseerror': {
-				'en': 'sorry, that failed due to some database or connection error. please try again.\n{0} errors within timespan of {1}, restart if necessary.',
-				'de': 'das hat leider wegen eines datenbank- oder -verbindungsfehlers nicht funktioniert. bitte versuche es nochmal.\n{0} fehler innerhalb von {1}, starte gegebenenfalls neu.'
+				'en': 'sorry, that failed due to some database or connection error. please try again.\n{0} errors since starting {1} ago, restart if necessary (close window or type [exit]).\nif the problem persists the application will close by itself.',
+				'de': 'das hat leider wegen eines datenbank- oder -verbindungsfehlers nicht funktioniert. bitte versuche es nochmal.\n{0} fehler seit dem start vor {1}, starte gegebenenfalls neu (fenster schließen oder [beenden] eingeben).\nwenn das problem weiterhin besteht, wird sich die anwendung selbst schließen.'
 			}, 'goodbye': {
-				'en': 'goodbye!',
-				'de': 'tschüß!'
+				'en': 'goodbye {0}!',
+				'de': 'tschüß {0}!'
 			}, 'greet': {
-				'en': 'hello {0}! welcome to the chat. type [help] (with brackets) for command overview.\nthe chat will start with the latest {1} contributions. current users are {2}.\nstarting any moment...',
-				'de': 'hallo {0}! willkommen im chat. gib [hilfe] (mit klammern) für eine befehlsübersicht ein.\nder chat startet mit den letzten {1} beiträgen. aktuelle nutzer sind {2}.\ngleich geht es los...'
+				'en': 'hello {0}! welcome to the chat. type [help] (with brackets) for command overview.\nthe chat will start with the latest {1} contributions if available. current users are {2}.\nstarting any moment...',
+				'de': 'hallo {0}! willkommen im chat. gib [hilfe] (mit klammern) für eine befehlsübersicht ein.\nder chat startet mit den letzten {1} beiträgen falls vorhanden. aktuelle nutzer sind {2}.\ngleich geht es los...'
 			}, 'help': {
 				'en': '''available commands have to be typed with brackets:
 
-[clear]    to truncate database - affects all users!
+[clear]    to clear database - affects all users!
 [exit]     to quit
 [interval] to change refresh interval
-[language] to change language
+[language] to change the applications language
 [name]     to change your name
 [notify]   to toggle notification on new messages
 [reset]    to delete config file and use default settings
@@ -90,7 +82,7 @@ class anarchychat:
 [name]             um deinen namen zu ändern
 [nutzer]           um eine liste der aktiven nutzer anzuzeigen
 [speichern]        um aktuelle einstellungen für den nächsten programmstart zu speichern
-[sprache]          um die sprache zu ändern
+[sprache]          um die sprache des programms zu ändern
 [zurücksetzen]     um konfigurationsdatei zu löschen und standardeinstellungen zu verwenden
 '''
 			}, 'interval': {
@@ -114,6 +106,9 @@ class anarchychat:
 			}, 'notify': {
 				'en': 'notifications are now {0}',
 				'de': 'benachrichtigungen sind nun {0}'
+			}, 'nousers': {
+				'en': 'not available',
+				'de': 'nicht vorhanden'
 			}, 'off': {
 				'en': 'turned off',
 				'de': 'ausgeschaltet'
@@ -153,7 +148,7 @@ class anarchychat:
 				TOUCH TINYTEXT);''')
 				self.connection.commit()
 		except Exception as error:
-			self.errorhandler(error, True)
+			self.errorhandler(error, False)
 		if self.login():
 			self.start()
 
@@ -191,7 +186,8 @@ class anarchychat:
 			elif len(select):
 				self.user = select
 		if self.user.lower() != '[exit]':
-			print(self.colorize(self.lang('greet', self.user, self.dblimit, ', '.join(self.ping(self.connection, 'get'))), Fore.CYAN))
+			currentusers=self.ping(self.connection, 'get')
+			print(self.colorize(self.lang('greet', self.user, self.dblimit, ', '.join(currentusers) if len(currentusers) else self.lang('nousers')), Fore.CYAN))
 			time.sleep(3)
 			return True
 		self.exit()
@@ -199,8 +195,7 @@ class anarchychat:
 	def start(self):
 		# start new thread for simultaneously retrieving and posting contributions and wait for input
 		self.fetchProcessRun = True
-		self.fetchProcess = threading.Thread(target = self.fetch)
-		self.fetchProcess.daemon = True
+		self.fetchProcess = threading.Thread(target = self.fetch, daemon = True)
 		self.fetchProcess.start()
 		self.post(self.colorize(self.lang('joined'), Fore.CYAN))
 		while True:
@@ -213,35 +208,43 @@ class anarchychat:
 
 	def exit(self):
 		# delete user from active table, close database connection and exit program
+		self.fetchProcessRun = False
 		if hasattr(self, 'connection'):
 			self.ping(self.connection, 'delete', {'NAME': self.user})
 			self.connection.close()
-		print(self.colorize(self.lang('goodbye'), Fore.CYAN))
+		print(self.colorize(self.lang('goodbye', self.user), Fore.CYAN))
 		time.sleep(2)
 		exit()
 
-	def errorhandler(self, error, quit = False):
+	def errorhandler(self, error, resume = None):
 		self.errorcounter['count'] += 1
 		runtime = int(time.time()) - self.errorcounter['start']
 		runtime = datetime.timedelta(seconds = runtime)
 		emsg=str(error.message if hasattr(error, 'message') else error)
 		print(self.colorize(self.lang('databaseerror', self.errorcounter['count'], runtime) + ' ' + emsg + '\n', Fore.RED))
 
-		if not quit:
+		if resume :
 			self.fetchProcessRun = False
-			self.fetchProcess.join()
-
-			self.connection.close()
-			self.connection = sqlite3.connect(self.database)
+			if hasattr(self, 'fetchProcess'):
+				self.fetchProcess.join()
+			del self.connection
+			try:
+				self.connection = sqlite3.connect(self.database)
+			except Exception as e:
+				self.errorhandler(e, False)
 			self.start()
-		self.exit()
+		elif not resume and resume is not None:
+			self.exit()
+		else:
+			return False
 
 	def fetch(self):
 		# fetch the latest contributions every so many seconds, notify about new messages and tell about being still active 
 		# needs another connection for running in separate thread
-		self.fconnection = sqlite3.connect(self.database)
-		while self.fetchProcessRun:
-			try:
+		self.fconnection = None
+		try:
+			self.fconnection = sqlite3.connect(self.database)
+			while self.fetchProcessRun:
 				cursor = self.fconnection.cursor()
 				cursor.execute('''SELECT * FROM CHAT WHERE ID > {0}'''.format(self.latestid))
 				results = cursor.fetchall()
@@ -257,9 +260,14 @@ class anarchychat:
 				# ping your name to the active list
 				self.ping(self.fconnection, 'put')
 				time.sleep(self.interval)
-			except Exception as error:
-				self.errorhandler(error)
-		self.fconnection.close()
+			self.fconnection.close()
+		except Exception as e:
+			del self.fconnection
+			self.errorhandler(e)
+			#raise Exception(e) from None
+			# 'from none' to avoid messing up the error output with:
+			# During handling of the above exception, another exception occurred:
+			# see https://www.python.org/dev/peps/pep-0409/
 
 	def post(self, message, user = None):
 		# insert message and delete older entries 
@@ -275,14 +283,14 @@ class anarchychat:
 					self.dblimit))
 			self.connection.commit()
 		except Exception as e:
-			self.errorhandler(e)
+			self.errorhandler(e, True)
 	def clearDB(self):
 		# truncate table
 		try:
 			self.connection.executescript('''DELETE FROM CHAT; VACUUM;''')
 			self.connection.commit()
 		except Exception as e:
-			self.errorhandler(e)
+			self.errorhandler(e, True)
 
 	def ping(self, conn, method, fields = None):
 		if method == 'put':
@@ -290,7 +298,7 @@ class anarchychat:
 				conn.execute('''INSERT OR REPLACE INTO PING (NAME, TOUCH) VALUES ('{0}', strftime('%s', 'now'));'''.format(self.user))
 				conn.commit()
 			except Exception as e:
-				self.errorhandler(e)
+				self.errorhandler(e, True)
 		elif method == 'get':
 			self.ping(conn, 'delete')
 			cursor = conn.cursor()
@@ -316,7 +324,8 @@ class anarchychat:
 					conn.execute('''DELETE FROM PING WHERE {0}='{1}';'''.format(list(fields.keys())[0], fields[list(fields.keys())[0]]))
 				conn.commit()
 			except Exception as e:
-				self.errorhandler(e)
+				self.errorhandler(e, True)
+
 	def colorize(self, str, col):
 		# occasionally fancy colors for outputs
 		# possible colours according to https://pypi.org/project/colorama/
@@ -398,7 +407,6 @@ class anarchychat:
 		if self.notify:
 			if not hasattr(self, 'toast'):
 				self.toast = ToastNotifier()
-			# winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
 			self.toast.show_toast(self.title + ' | ' + msg['title'], msg['msg'], threaded = True, icon_path = None, duration = 3)
 
 if __name__ == '__main__':
