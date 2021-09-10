@@ -77,6 +77,8 @@ class anarchychat:
 [reset]    to delete config file and use default settings
 [save]     to save current settings for next start
 [users]    to show list of currently active users
+
+@user      highlights the mention for the respective user 
 ''',
 				'de': '''verfügbare befehle müssen mit klammern eingegeben werden:
 
@@ -89,6 +91,8 @@ class anarchychat:
 [speichern]        um aktuelle einstellungen für den nächsten programmstart zu speichern
 [sprache]          um die sprache des programms zu ändern
 [zurücksetzen]     um konfigurationsdatei zu löschen und standardeinstellungen zu verwenden
+
+@nutzer            hebt den entsprechenden benutzernamen farblich für diesen nutzer hervor
 '''
 			}, 'interval': {
 				'en': 'enter seconds to refresh (1-10):',
@@ -254,7 +258,7 @@ class anarchychat:
 				results = cursor.fetchall()
 				if len(results):
 					for result in results:
-						self.fprint ('\r{0} | {1}: {2}'.format(result[2], (self.fprint(result[1], justcolorize = Fore.YELLOW) if result[1] == self.user else result[1]), result[3]))
+						self.fprint ('\r{0} | {1}: {2}'.format(result[2], (self.fprint(result[1], justcolorize = Fore.YELLOW) if result[1] == self.user else result[1]), self.mention(result[3])))
 						self.latestid = result[0]
 						latestuser = result[1]
 						latestmsg = {'title': result[1], 'msg': result[3]}
@@ -407,7 +411,9 @@ class anarchychat:
 			terminalwidth = shutil.get_terminal_size(0)[0]
 			# clear input display - supports multi line inputs
 			# may be ugly if console dimensions are changed during use
+			linter=0 # highlighting unused i distracts me...
 			for i in range(0, math.ceil(len(message) / terminalwidth)):
+				linter += i
 				self.fprint('\033[A' + (' ' * (terminalwidth)) + '\033[A')
 			if len(message):
 				self.post(message)
@@ -419,6 +425,12 @@ class anarchychat:
 			if not hasattr(self, 'toast'):
 				self.toast = ToastNotifier()
 			self.toast.show_toast(self.title + ' | ' + msg['title'], msg['msg'], threaded = True, icon_path = None, duration = 3)
+
+	def mention(self, msg):
+		usertag = '@' + self.user
+		if usertag in msg:
+			msg = msg.replace(usertag, self.fprint(usertag, justcolorize = Fore.YELLOW))
+		return msg
 
 if __name__ == '__main__':
 	chat = anarchychat(DEFAULT)
