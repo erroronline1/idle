@@ -7,22 +7,27 @@ import math
 import json
 from pathlib import Path
 import os
+import sys
 
+# windows-specific fancyness 
+from win10toast import ToastNotifier
 from colorama import Fore, Style, init
 import psutil
-
-from win10toast import ToastNotifier
+# possible console colors according to https://pypi.org/project/colorama/
+# this however only works with print, not input in cmd and powershell, hence a strict separation from output and input
+if '.exe' in psutil.Process(os.getpid()).parent().name():
+	# powershell is a bit odd on this
+	init(convert=True)
 
 HELLO = '''
                      _           _       _
  ___ ___ ___ ___ ___| |_ _ _ ___| |_ ___| |_
 | .'|   | .'|  _|  _|   | | |  _|   | .'|  _|
 |__,|_|_|__,|_| |___|_|_|_  |___|_|_|__,|_|
-                        |___|                 built 20210907
+                        |___|                 built 20210910
 
 by error on line 1 (erroronline.one)
 '''
-
 DEFAULT = { # default settings
 	# relative paths do not work!
 	# 'database': '\\\\fritz.box\\FRITZ.NAS\\anarchychat.db',
@@ -149,8 +154,6 @@ class anarchychat:
 				self.connection.commit()
 		except Exception as error:
 			self.errorhandler(error, False)
-		if self.login():
-			self.start()
 
 	def ini(self, action):
 		home = str(Path.home())
@@ -179,25 +182,26 @@ class anarchychat:
 	def login(self):
 		# set username if none or already in use, or exit
 		while not self.user or self.user in self.ping(self.connection, 'get'):
-			print(self.colorize(self.lang('setname'), Fore.CYAN))
+			self.fprint(self.lang('setname'), color = Fore.CYAN)
 			select = str(input('> ')).strip()
 			if select in self.ping(self.connection, 'get'):
-				print(self.colorize(self.lang('nametaken', self.active), Fore.CYAN))
+				self.fprint(self.lang('nametaken', self.active), color = Fore.CYAN)
 			elif len(select):
 				self.user = select
 		if self.user.lower() != '[exit]':
 			currentusers=self.ping(self.connection, 'get')
-			print(self.colorize(self.lang('greet', self.user, self.dblimit, ', '.join(currentusers) if len(currentusers) else self.lang('nousers')), Fore.CYAN))
+			self.fprint(self.lang('greet', self.user, self.dblimit, ', '.join(currentusers) if len(currentusers) else self.lang('nousers')), color = Fore.CYAN)
 			time.sleep(3)
-			return True
-		self.exit()
+			self.start()
+		else:
+			self.exit()
 	
 	def start(self):
 		# start new thread for simultaneously retrieving and posting contributions and wait for input
 		self.fetchProcessRun = True
 		self.fetchProcess = threading.Thread(target = self.fetch, daemon = True)
 		self.fetchProcess.start()
-		self.post(self.colorize(self.lang('joined'), Fore.CYAN))
+		self.post(self.fprint(self.lang('joined'), justcolorize = Fore.CYAN))
 		while True:
 			try:
 				message = str(input('\r> ')).strip()
@@ -212,7 +216,7 @@ class anarchychat:
 		if hasattr(self, 'connection'):
 			self.ping(self.connection, 'delete', {'NAME': self.user})
 			self.connection.close()
-		print(self.colorize(self.lang('goodbye', self.user), Fore.CYAN))
+		self.fprint(self.lang('goodbye', self.user if self.user.lower() != '[exit]' else ''), color = Fore.CYAN)
 		time.sleep(2)
 		exit()
 
@@ -221,7 +225,7 @@ class anarchychat:
 		runtime = int(time.time()) - self.errorcounter['start']
 		runtime = datetime.timedelta(seconds = runtime)
 		emsg=str(error.message if hasattr(error, 'message') else error)
-		print(self.colorize(self.lang('databaseerror', self.errorcounter['count'], runtime) + ' ' + emsg + '\n', Fore.RED))
+		self.fprint(self.lang('databaseerror', self.errorcounter['count'], runtime) + ' ' + emsg + '\n', color = Fore.RED)
 
 		if resume :
 			self.fetchProcessRun = False
@@ -250,13 +254,13 @@ class anarchychat:
 				results = cursor.fetchall()
 				if len(results):
 					for result in results:
-						print ('\r{0} | {1}: {2}'.format(result[2], (self.colorize(result[1], Fore.YELLOW) if result[1] == self.user else result[1]), result[3]))
+						self.fprint ('\r{0} | {1}: {2}'.format(result[2], (self.fprint(result[1], justcolorize = Fore.YELLOW) if result[1] == self.user else result[1]), result[3]))
 						self.latestid = result[0]
 						latestuser = result[1]
 						latestmsg = {'title': result[1], 'msg': result[3]}
 					if latestuser != self.user:
 						self.notification(latestmsg)
-					print('\r> ', end = '')
+					self.fprint('\r> ', newline = False)
 				# ping your name to the active list
 				self.ping(self.fconnection, 'put')
 				time.sleep(self.interval)
@@ -293,6 +297,7 @@ class anarchychat:
 			self.errorhandler(e, True)
 
 	def ping(self, conn, method, fields = None):
+		# connection must be passed to be usable from different threads
 		if method == 'put':
 			try:
 				conn.execute('''INSERT OR REPLACE INTO PING (NAME, TOUCH) VALUES ('{0}', strftime('%s', 'now'));'''.format(self.user))
@@ -318,7 +323,7 @@ class anarchychat:
 					if len(results):
 						for result in results:
 							if result[0] != self.user:
-								self.post(self.colorize(self.lang('left') + self.lang('timeout'), Fore.CYAN), result[0])
+								self.post(self.fprint(self.lang('left') + self.lang('timeout'), justcolorize = Fore.CYAN), result[0])
 					conn.execute('''DELETE FROM PING WHERE (strftime('%s', 'now') - TOUCH) > {0};'''.format(self.active))
 				else:
 					conn.execute('''DELETE FROM PING WHERE {0}='{1}';'''.format(list(fields.keys())[0], fields[list(fields.keys())[0]]))
@@ -326,14 +331,21 @@ class anarchychat:
 			except Exception as e:
 				self.errorhandler(e, True)
 
-	def colorize(self, str, col):
-		# occasionally fancy colors for outputs
-		# possible colours according to https://pypi.org/project/colorama/
-		# this however only works with print, not input in cmd and powershell
-		if psutil.Process(os.getpid()).parent().name() in ['py.exe', 'powershell.exe', 'cmd.exe']:
-			# powershell is a bit odd on this
-			init(convert=True)
-		return f'{col}{str}{Style.RESET_ALL}'
+	def fprint(self, str, color = None, newline = True, justcolorize = None):
+		# more universal use and output cleansing compared to plain print()
+		if color is not None:
+			str = f'{color}{str}{Style.RESET_ALL}'
+		elif justcolorize is not None:
+			str = f'{justcolorize}{str}{Style.RESET_ALL}'
+		if justcolorize is None:
+			terminalwidth = shutil.get_terminal_size(0)[0]
+			str = '\r' + str
+			if newline:
+				str = str + ' ' * (terminalwidth- len(str)) + '\n'
+			sys.stdout.write(str)
+			sys.stdout.flush()
+		else:
+			return str
 
 	def lang(self, chunk, *args):
 		if chunk in self.languageChunks and self.language in self.languageChunks[chunk]:
@@ -344,60 +356,59 @@ class anarchychat:
 	def command(self, message):
 		# filter and conditionally execute commands
 		if message.lower() in ('[clear]', '[löschen]'):
-			print(self.colorize(self.lang('clear'), Fore.CYAN))
+			self.fprint(self.lang('clear'), color = Fore.CYAN)
 			self.clearDB()
 			return True
 		elif message.lower() in ('[exit]', '[beenden]'):
-			self.post(self.colorize(self.lang('left'), Fore.CYAN))
+			self.post(self.fprint(self.lang('left'), justcolorize = Fore.CYAN))
 			return False
 		elif message.lower() in ('[help]', '[hilfe]'):
-			print(self.colorize(self.lang('help'), Fore.CYAN))
+			self.fprint(self.lang('help'), color = Fore.CYAN)
 			return True
 		elif message.lower() in ('[interval]', '[aktualisierung]'):
-			print(self.colorize(self.lang('interval'), Fore.CYAN))
+			self.fprint(self.lang('interval'), color = Fore.CYAN)
 			select=int(input('> '))
 			if 0 < select < 11:
 				self.interval = select
 			return True
 		elif message.lower() in ('[language]', '[sprache]'):
 			supported = list(self.languageChunks['lang'].keys())
-			print(self.colorize(self.lang('lang') +  ', '.join(supported) + ': ', Fore.CYAN))
+			self.fprint(self.lang('lang') +  ', '.join(supported) + ': ', color = Fore.CYAN)
 			select = str(input('> ')).lower()
 			if select in supported:
 				self.language = select
 			return True
 		elif message.lower() in ('[name]', '[name]'):
-			print(self.colorize(self.lang('name'), Fore.CYAN))
+			self.fprint(self.lang('name'), color = Fore.CYAN)
 			select = str(input('> ')).strip()
 			if select in self.ping(self.connection, 'get'):
-				print(self.colorize(self.lang('nametaken', self.active), Fore.CYAN))
+				self.fprint(self.lang('nametaken', self.active), color = Fore.CYAN)
 			elif len(select):
 				self.ping(self.connection, 'delete', {'NAME': self.user})
 				self.user = select
 			return True
 		elif message.lower() in ('[notify]', '[benachrichtigung]'):
 			self.notify = not self.notify
-			print(self.colorize(self.lang('notify', self.lang('on') if self.notify else self.lang('off')), Fore.CYAN))
+			self.fprint(self.lang('notify', self.lang('on') if self.notify else self.lang('off')), color = Fore.CYAN)
 			return True
 		elif message.lower() in ('[reset]', '[zurücksetzen]'):
 			self.ini('delete')
 			self.ini('get')
-			print(self.colorize(self.lang('reset'), Fore.CYAN))
+			self.fprint(self.lang('reset'), color = Fore.CYAN)
 			return True
 		elif message.lower() in ('[save]', '[speichern]'):
 			self.ini('put')
-			print(self.colorize(self.lang('save'), Fore.CYAN))
+			self.fprint(self.lang('save'), color = Fore.CYAN)
 			return True
 		elif message.lower() in ('[users]', '[nutzer]'):
-			print(self.colorize(', '.join(self.ping(self.connection, 'get')), Fore.CYAN))
+			self.fprint(', '.join(self.ping(self.connection, 'get')), color = Fore.CYAN)
 			return True
 		else:
-			terminalwidth, terminalheight = shutil.get_terminal_size(0)
+			terminalwidth = shutil.get_terminal_size(0)[0]
 			# clear input display - supports multi line inputs
-			# may be ugly if console dimensions are changes during use
+			# may be ugly if console dimensions are changed during use
 			for i in range(0, math.ceil(len(message) / terminalwidth)):
-				terminalheight = terminalheight + i # sometimes linter can be annoying...
-				print('\033[A' + (' ' * (terminalwidth - 2)) + '\033[A')
+				self.fprint('\033[A' + (' ' * (terminalwidth)) + '\033[A')
 			if len(message):
 				self.post(message)
 			return True
@@ -410,5 +421,6 @@ class anarchychat:
 			self.toast.show_toast(self.title + ' | ' + msg['title'], msg['msg'], threaded = True, icon_path = None, duration = 3)
 
 if __name__ == '__main__':
-	print(HELLO)
 	chat = anarchychat(DEFAULT)
+	chat.fprint(HELLO, color = Fore.CYAN)
+	chat.login()
