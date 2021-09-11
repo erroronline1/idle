@@ -16,13 +16,13 @@ class stupidbot():
 		self.generic = [ # first item: mulilanguage trigger pattern, second item: language dict with random responses
 			['hello|hallo', {
 				'en': [
-					'hello {0}!',
-					'{0} hi!',
-					'{0} wassuuuppp?'],
+					'hello {0}! ask "@' + self.name + ' help" for info about me.',
+					'{0} hi! ask "@' + self.name + ' help" for info about me.',
+					'{0} wassuuuppp? ask "@' + self.name + ' help" for info about me.',],
 				'de': [
-					'hallo {0}!',
-					'{0} hi!',
-					'{0} was geht?']}],
+					'hallo {0}! frag "@' + self.name + ' hilfe" für infos über mich.',
+					'{0} hi! frag "@' + self.name + ' hilfe" für infos über mich.',
+					'{0} was geht? frag "@' + self.name + ' hilfe" für infos über mich.']}],
 			['bored|boring|langweilig|langeweile', {
 				'en': [
 					'{0} you could tidy up your room...',
@@ -46,7 +46,10 @@ class stupidbot():
 					'Q. Are any Halloween monsters good at math? A. No — unless you Count Dracula!',
 					'Q. Why is Peter Pan flying all the time? A. He Neverlands!',
 					'Q: What is a skeleton\'s favorite musical instrument? A: A Trombone!',
-					'Q: How do you stay warm in an empty room? A: Go stand in the corner — it\'s always 90 degrees.'],
+					'Q: How do you stay warm in an empty room? A: Go stand in the corner — it\'s always 90 degrees.',
+					'Q. Why did the bicycle fall over? A: It was two tired.',
+					'Q: What did one wall say to the other wall? A:  I\'ll meet you at the corner!',
+					'Q:  What has four wheels and flies? A:  A garbage truck'],
 				'de': [
 					'Treffen sich 2 Schnecken an der Straße. Will die eine herübergehen. Sagt die andere: "Vorsichtig in einer Stunde kommt der Bus."',
 					'Ein Mann rennt völlig außer Atem zum Bootssteg, wirft seinen Koffer auf das drei Meter entfernte Boot, springt hinterher, zieht sich mit letzter Kraft über die Reling und schnauft erleichtert: "Geschafft!" Einer der Seeleute: "Gar nicht so schlecht, aber warum haben Sie eigentlich nicht gewartet, bis wir anlegen?"',
@@ -60,7 +63,7 @@ class stupidbot():
 					'i try my very best.'],
 				'de': [
 					'ich versuche mein bestes!']}],
-			['skill|can you|fähigkeit|kannst du', {
+			['skill|can you|help|fähigkeit|kannst du|hilfe', {
 				'en': [
 					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes and help you train mental arithmetics. interact with me by mentioning me with @' + self.name + '.'],
 				'de': [

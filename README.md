@@ -44,6 +44,7 @@ creates a background image with scale, spirals and areas according to the device
 
 ## stupidbot
 serves as an addition to the anarchychat. split codebase for easier maintaining.
+easy-to-implement and expendable skills beside generic responses. language according to passed current language from the chat itself.
 
 ## t2aa
 text-2-ascii-art can be used from the command line. found it to be useful for structuring and commenting code.
