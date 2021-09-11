@@ -1,10 +1,12 @@
 import random
 import re
+import requests
 
 class stupidbot():
 	def __init__(self, name):
 		self.expects = None
 		self.name = name
+		self.location = '69257 wiesenbach' # occasionally useful for skills. currently hardcoded for anarchychat being a strictly locally used application 
 		self.default = {
 			'en': [
 				'{0}, i don\'t know how to answer that...', 
@@ -28,12 +30,14 @@ class stupidbot():
 					'{0} you could tidy up your room...',
 					'{0} have you finished your homework?',
 					'you have what it takes to exercise coding {0}!',
-					'ask me about training mental arithmetic {0}!'],
+					'ask me about training mental arithmetic {0}!',
+					'go outside if the weather is appropriate. ask me about that :)'],
 				'de': [
 					'{0} du könntest dein zimmer aufräumen...',
 					'{0} hast du deine hausaufgaben schon fertig?',
 					'du hast alles was du zum programmieren üben brauchst {0}!',
-					'du, {0}, und ich könnten kopfrechnen üben!']}],
+					'du, {0}, und ich könnten kopfrechnen üben!',
+					'du könntest rausgehen, wenn es das wetter zulässt. frag mich danach :)']}],
 			['stupid|dumb|blöd|dumm', {
 				'en': [
 					'{0} are you sure about that?',
@@ -58,16 +62,18 @@ class stupidbot():
 					'Fritzchen sitzt am See und angelt. Ein Spaziergänger fragt: "Und, beißen die Fische?" Fritzchen antwortet entnervt: "Nein, Sie können sie, ruhig streicheln."',
 					'Junge: "Was ist ein Rotkehlchen?" Schwester: "Ach, irgend so ein verrückter Fisch!" Junge: "Hier steht aber: Hüpft von Ast zu Ast!" Schwester: "Da siehst du, wie verrückt der ist!"',
 					'Fragt der Lehrer: "Wer von euch kann mir sechs Tiere nennen, die in Australien leben?" Meldet sich Fritzchen: "Ein Koala und fünf Kängurus.']}],
-			['funny|lustig|haha', {
+			['funny|thank|lustig|danke|haha', {
 				'en': [
-					'i try my very best.'],
+					'i try my very best.',
+					'you\'re welcome {0}!'],
 				'de': [
-					'ich versuche mein bestes!']}],
+					'ich versuche mein bestes!',
+					'immer gern {0}!']}],
 			['skill|can you|help|fähigkeit|kannst du|hilfe', {
 				'en': [
-					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes and help you train mental arithmetics. interact with me by mentioning me with @' + self.name + '.'],
+					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes and help you train mental arithmetics. i can also tell you the weather for ' + self.location + '. interact with me by mentioning me with @' + self.name + '.'],
 				'de': [
-					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen und dir beim kopfrechnen üben helfen. sprich mit mir indem du mich mit @' + self.name + 'erwähnst.']}]
+					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen und dir beim kopfrechnen üben helfen. ich kann dir auch das wetter für ' + self.location + ' sagen. sprich mit mir indem du mich mit @' + self.name + 'erwähnst.']}]
 		]
 
 	def parse(self, message, language, user):
@@ -78,7 +84,7 @@ class stupidbot():
 		if '@'+self.name in message:
 			answer = False
 			# list of skills according to method names.
-			skills = ['mentalarithmetic']
+			skills = ['mentalarithmetic', 'googleweather']
 			for skill in skills:
 				answer = getattr(self, skill)(message)
 			# if skills did non respond search generic responses
@@ -92,6 +98,18 @@ class stupidbot():
 				answer = self.default[language][random.randint(0, len(self.default[language]) - 1)].format('@' + user)
 			return answer
 		return False
+
+	def sourcecode(self, link, timeout = 5):
+		try:
+			r = requests.get( link, headers = 
+				{"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0",
+				"Referer": "https://ecosia.org"}, timeout = timeout )
+			if r.status_code == 200:
+				return (r.text)
+			else:
+				return False
+		except:
+			return False
 
 	################################################################
 	# skill methods
@@ -138,4 +156,24 @@ class stupidbot():
 				return answer[self.language][random.randint(0,len(answer[self.language])-1)].format(value)
 		return False
 
-		
+	def googleweather(self, message):
+		if re.search('weather|rain|temperature|wetter|regen|regnet|warm|temperatur', message, re.IGNORECASE | re.DOTALL):
+			answer = {
+				'en': [
+					'sorry, i kindly asked but did not get a response too.'],
+				'de': [
+					'verzeihung, ich habe wirklich höflich gefragt aber auch keine antwort bekommen.']
+				}
+			gcode = self.sourcecode('https://www.google.com/search?q=weather+' + self.location.replace(' ', '+'))
+			if gcode:
+				data = re.findall(r'id="wob_tm".+?>(\d+).+?id="wob_pp".*?>(.+?)<.+?id="wob_loc">(.+?)<.*?id="wob_dc">(.+?)<', gcode, re.IGNORECASE | re.DOTALL)
+				if len(data):
+					answer = {
+						'en': [
+							'the weather for {0} is reportedly {1} with {2}°c and rainfall probability of {3}.'],
+						'de': [
+							'das wetter für {0} wird als {1} gemeldet, bei {2}°c und einer niederschlagswahrscheinlichkeit von {3}.']
+						}
+					return answer[self.language][0].format(data[0][2], data[0][3], data[0][0], data[0][1])			
+			return answer[self.language][random.randint(0,len(answer[self.language])-1)]
+		return False
