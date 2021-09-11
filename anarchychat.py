@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 import os
 import sys
-import random
 
 # windows-specific fancyness 
 from win10toast import ToastNotifier
@@ -25,7 +24,7 @@ HELLO = '''
  ___ ___ ___ ___ ___| |_ _ _ ___| |_ ___| |_
 | .'|   | .'|  _|  _|   | | |  _|   | .'|  _|
 |__,|_|_|__,|_| |___|_|_|_  |___|_|_|__,|_|
-                        |___|                 built 20210910
+                        |___|                 built 20210912
 
 by error on line 1 (erroronline.one)
 '''
@@ -45,8 +44,7 @@ class anarchychat:
 	def __init__(self, ini):
 		self.database = self.dblimit = self.interval = self.active = self.user = self.language = self.title = None # i like you too, linter
 
-		self.bot = 'bot'
-		self.botExpects = None
+		self.bot = None
 		self.defaultini = ini
 		self.notify = True
 		self.latestid = 0
@@ -82,8 +80,7 @@ class anarchychat:
 [users]    to show list of currently active users
 
 @user      highlights the mention for the respective user 
-
-by the way: @''' + self.bot + ''' knows a few jokes and helps training mental calculation''',
+''',
 				'de': '''verfügbare befehle müssen mit klammern eingegeben werden:
 
 [aktualisierung]   um die aktualisierungsrate zu ändern
@@ -97,8 +94,7 @@ by the way: @''' + self.bot + ''' knows a few jokes and helps training mental ca
 [zurücksetzen]     um konfigurationsdatei zu löschen und standardeinstellungen zu verwenden
 
 @nutzer            hebt den entsprechenden benutzernamen farblich für diesen nutzer hervor
-
-übrigens: @''' + self.bot + ''' kennt ein paar witze und trainiert dein kopfrechnen'''
+'''
 			}, 'interval': {
 				'en': 'enter seconds to refresh (1-10):',
 				'de': 'gib sekunden zur aktualisierung ein (1-10):'
@@ -187,7 +183,7 @@ by the way: @''' + self.bot + ''' knows a few jokes and helps training mental ca
 
 	def login(self):
 		# set username if none or already in use, or exit
-		while not self.user or self.user in self.ping(self.connection, 'get') or self.user == self.bot:
+		while not self.user or self.user in self.ping(self.connection, 'get'):
 			self.fprint(self.lang('setname'), color = Fore.CYAN)
 			select = str(input('> ')).strip()
 			if select in self.ping(self.connection, 'get'):
@@ -198,6 +194,9 @@ by the way: @''' + self.bot + ''' knows a few jokes and helps training mental ca
 			currentusers=self.ping(self.connection, 'get')
 			self.fprint(self.lang('greet', self.user, self.dblimit, ', '.join(currentusers) if len(currentusers) else self.lang('nousers')), color = Fore.CYAN)
 			time.sleep(3)
+			self.post(self.fprint(self.lang('joined'), justcolorize = Fore.CYAN))
+			if self.bot is not None:
+				self.post(self.bot.parse('@bot hello hallo', self.language, self.user), self.bot.name)
 			self.start()
 		else:
 			self.exit()
@@ -207,7 +206,6 @@ by the way: @''' + self.bot + ''' knows a few jokes and helps training mental ca
 		self.fetchProcessRun = True
 		self.fetchProcess = threading.Thread(target = self.fetch, daemon = True)
 		self.fetchProcess.start()
-		self.post(self.fprint(self.lang('joined'), justcolorize = Fore.CYAN))
 		while True:
 			try:
 				message = str(input('\r> ')).strip()
@@ -292,7 +290,6 @@ by the way: @''' + self.bot + ''' knows a few jokes and helps training mental ca
 					message,
 					self.dblimit))
 			self.connection.commit()
-			self.stupidbot(message.lower())
 		except Exception as e:
 			self.errorhandler(e, True)
 
@@ -317,7 +314,7 @@ by the way: @''' + self.bot + ''' knows a few jokes and helps training mental ca
 			cursor = conn.cursor()
 			cursor.execute('''SELECT * FROM PING''')
 			results = cursor.fetchall()
-			out=[self.bot]
+			out = [] if self.bot is None else [self.bot.name]
 			if len(results):
 				for result in results:
 					out.append(result[0])
@@ -354,6 +351,12 @@ by the way: @''' + self.bot + ''' knows a few jokes and helps training mental ca
 			sys.stdout.flush()
 		else:
 			return str
+
+	def mention(self, message):
+		usertag = '@' + self.user
+		if usertag in message:
+			message = message.replace(usertag, self.fprint(usertag, justcolorize = Fore.YELLOW))
+		return message
 
 	def lang(self, chunk, *args):
 		if chunk in self.languageChunks and self.language in self.languageChunks[chunk]:
@@ -421,6 +424,10 @@ by the way: @''' + self.bot + ''' knows a few jokes and helps training mental ca
 				self.fprint('\033[A' + (' ' * (terminalwidth)) + '\033[A')
 			if len(message):
 				self.post(message)
+				if self.bot is not None:
+					botmsg = self.bot.parse(message, self.language, self.user)
+					if botmsg:
+						self.post(botmsg, self.bot.name)
 			return True
 
 	def notification(self, message):
@@ -430,89 +437,12 @@ by the way: @''' + self.bot + ''' knows a few jokes and helps training mental ca
 				self.toast = ToastNotifier()
 			self.toast.show_toast(self.title + ' | ' + message['title'], message['msg'], threaded = True, icon_path = None, duration = 3)
 
-	def mention(self, message):
-		usertag = '@' + self.user
-		if usertag in message:
-			message = message.replace(usertag, self.fprint(usertag, justcolorize = Fore.YELLOW))
-		return message
-
-	def stupidbot(self, message):
-		if '@'+self.bot in message:
-			message=message.split()
-			default={
-				'en': ['{0}, i don\'t know how to answer that...', 'sorry {0}, i am not sure about that.'],
-				'de': ['{0}, ich weiß nicht wie ich darauf antworten soll...', 'da bin ich mir leider nicht sicher {0}.']
-			}
-			answer = default[self.language][random.randint(0, len(default[self.language]) - 1)].format('@' + self.user)
-
-			def calculation():
-				method = ['+', '-', '*', '/']
-				a = ''
-				while a == '' or not isinstance(self.botExpects, int) or self.botExpects < 0: # avoid floats and negative numbers
-					a = str(random.randint(1, 10)) + method[random.randint(0, len(method)-1)] + str(random.randint(1, 10))
-					self.botExpects = eval(a)
-				return a
-
-			single={ # keyword list, answer list
-				'en': [
-					[['hello'],
-						['hello {0}!', '{0} hi!', '{0} wassuuuppp?']],
-					[['bored', 'boring'],
-						['{0} you could tidy up your room...',
-						'{0} have you finished your homework?',
-						'you can always exercise coding {0}!']],
-					[['stupid', 'dumb'],
-						['{0} are you sure about that?',
-						'that\'s not nice to say about anyone {0}!']],
-					[['joke'],
-						['Q. Are any Halloween monsters good at math? A. No — unless you Count Dracula!',
-						'Q. Why is Peter Pan flying all the time? A. He Neverlands!',
-						'Q: What is a skeleton\'s favorite musical instrument? A: A Trombone!',
-						'Q: How do you stay warm in an empty room? A: Go stand in the corner — it\'s always 90 degrees.']],
-					[['funny', 'haha'],
-						['i try my very best.']],
-					[['calculate', 'math', 'mental'],
-						['{0} what is the result of {1}?']]
-				],
-				'de': [
-					[['hallo'],
-						['hallo {0}!', '{0} hi!', '{0} was geht?']],
-					[['langweilig', 'langeweile'],
-						['{0} du könntest dein zimmer aufräumen...',
-						'{0} hast du deine hausaufgaben schon fertig?',
-						'du kannst immer programmieren üben {0}!']],
-					[['blöd', 'dumm'],
-						['{0} bist du dir da sicher?',
-						'das ist aber nicht nett {0}!']],
-					[['witz'],
-						['Treffen sich 2 Schnecken an der Straße. Will die eine herübergehen. Sagt die andere: "Vorsichtig in einer Stunde kommt der Bus."',
-						'Ein Mann rennt völlig außer Atem zum Bootssteg, wirft seinen Koffer auf das drei Meter entfernte Boot, springt hinterher, zieht sich mit letzter Kraft über die Reling und schnauft erleichtert: "Geschafft!" Einer der Seeleute: "Gar nicht so schlecht, aber warum haben Sie eigentlich nicht gewartet, bis wir anlegen?"',
-						'Paul zerscheppert in der Wohnung seines Onkels eine große Vase. Der erblasste Onkel stammelt: "Die Vase war aus dem 17. Jahrhundert!" Darauf Paul erleichtert: "Gott sei Dank, ich dachte schon, sie sei neu".',
-						'Laufen zwei Zahnstocher den Berg hoch und werden plötzlich von einem Igel überholt. Sagt der eine zum anderen: "Ach – hätte ich gewusst, dass ein Bus fährt, wäre ich mit dem gefahren!"'
-						'Fritzchen sitzt am See und angelt. Ein Spaziergänger fragt: "Und, beißen die Fische?" Fritzchen antwortet entnervt: "Nein, Sie können sie, ruhig streicheln."',
-						'Junge: "Was ist ein Rotkehlchen?" Schwester: "Ach, irgend so ein verrückter Fisch!" Junge: "Hier steht aber: Hüpft von Ast zu Ast!" Schwester: "Da siehst du, wie verrückt der ist!"'
-						'Fragt der Lehrer: "Wer von euch kann mir sechs Tiere nennen, die in Australien leben?" Meldet sich Fritzchen: "Ein Koala und fünf Kängurus.']],
-					[['lustig', 'haha'],
-						['ich versuche mein bestes!']],
-					[['rechnen', 'mathe', 'kopfrechnen'],
-						['{0} what ergibt {1}?']]
-				]
-			}
-
-			if self.botExpects is not None and str(self.botExpects) in message:
-				answer={'en': 'yeah, the answer is {0}!', 'de': 'ja, das ergebnis ist {0}!'}[self.language].format(self.botExpects)
-				self.botExpects = None
-			else:
-				for keywords in single[self.language]:
-					if any(x in message for x in keywords[0]):
-						if (any(y in ['calculate','math','rechnen','mathe'] for y in keywords[0])):
-							answer = keywords[1][random.randint(0, len(keywords[1]) - 1)].format('@' + self.user, calculation())
-						else:
-							answer = keywords[1][random.randint(0, len(keywords[1]) - 1)].format('@' + self.user)
-						break
-			self.post(answer, self.bot)
-
 if __name__ == '__main__':
+	# anarchychat is supposed to work without the stupidbot as well
+	# however as siblings the anarchychat is rooting the user name and message according to stupidbots methods
+	# implementation is meant to be kept as little as possible though
+	from stupidbot import stupidbot
 	chat = anarchychat(DEFAULT)
 	chat.fprint(HELLO, color = Fore.CYAN)
+	chat.bot = stupidbot('bot') # final decision whether bot is available or not
 	chat.login()

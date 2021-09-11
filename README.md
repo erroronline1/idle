@@ -42,5 +42,8 @@ rename all files in specified folder. choose if you want to rename all the same 
 ## ruler
 creates a background image with scale, spirals and areas according to the devices resolution
 
+## stupidbot
+serves as an addition to the anarchychat. split codebase for easier maintaining.
+
 ## t2aa
 text-2-ascii-art can be used from the command line. found it to be useful for structuring and commenting code.
