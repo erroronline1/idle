@@ -6,13 +6,14 @@ some of them come from first doodles with the language but evolved to decent too
 ## anarchychat
 a stupid little chat where one script handles everything without the necessity of a server script - hence the name. basically you only need to define a shared location for the sqlite-database-file (yeah, i was quite optimistic about that in the beginning). if you store this within a network-folder, e.g. an nas-drive, everyone within the local network is able to participate in the chat. the script itself can be stored in the same place for everyone to access via shortcut for easier maintaining, or be used decentralized. this originated from restricting online-access for the kids rendering messenger services useless after the timeout. using this network-chat it might still be possible to reach out. sure - i could just go upstairs and talk to them though, but like any proper programmer i'd rather spend several days on developing a cumbersome solution to save a few minutes...
 
-all entries above the dblimit will be deleted. some commands might affect every user. notifications on new messages from other users are implemented windows-specific.
+all entries above the dblimit will be deleted. some commands might affect every user. notifications on new messages from other users are implemented windows-specific. there is a stupid little bot helping with mental calculation...
 
 ### issues:
 * it was a wild ride experiencing and trying to handle troubles using sqlite via network until i found [ressources about that topic](https://www.sqlite.org/useovernet.html). after all it is stated, that sqlite may not be suitable for this kind of usecase without a server handling the in- and output. there might/will be errors due to competing database insertions and locked database on connection issues.
 * using fritz.nas is a major problem for slow fritz letting the application freeze, having to delete the db-file and still having to wait several minutes to start over again. however on a wd-mycloud-nas it works more reliable even on connection loss and doesn't seem to have the necessity to delete the database. can still remain unlocked for some minutes though.
+* once in a while the toast-messages go rogue. it might be necessary to reboot...
 
-works quite reasonably in vsc-console and cmd as a py-script on a stable connection. not quite in idle and powershell though. sometimes lines slip a bit, because i have not sanitized competing print-statements yet.
+works quite reasonably in vsc-console and cmd as a py-script on a stable connection. not quite in idle and powershell though.
 
 well, just because you could doesn't mean you should, but it was fun. at least i learned a bit about sqlite, threading and exceptions while handling the deficiencies. absolute win.
 
