@@ -18,11 +18,11 @@ class stupidbot():
 			['hello|hallo', {
 				'en': [
 					'hello {0}! ask "@' + self.name + ' help" for info about me.',
-					'{0} hi! ask "@' + self.name + ' help" for info about me.',
+					'hi {0}! ask "@' + self.name + ' help" for info about me.',
 					'{0} wassuuuppp? ask "@' + self.name + ' help" for info about me.',],
 				'de': [
 					'hallo {0}! frag "@' + self.name + ' hilfe" für infos über mich.',
-					'{0} hi! frag "@' + self.name + ' hilfe" für infos über mich.',
+					'hi {0}! frag "@' + self.name + ' hilfe" für infos über mich.',
 					'{0} was geht? frag "@' + self.name + ' hilfe" für infos über mich.']}],
 			['bored|boring|langweilig|langeweile', {
 				'en': [
@@ -70,9 +70,11 @@ class stupidbot():
 					'immer gern {0}!']}],
 			['skill|can you|help|fähigkeit|kannst du|hilfe', {
 				'en': [
-					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes and help you train mental arithmetics. i can also tell you the weather. interact with me by mentioning me with @' + self.name + '.'],
+					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes and help you train mental arithmetics. '
+					+ ' i can also tell you the weather and tell about things on wikipedia. interact with me by mentioning me with @' + self.name + '.'],
 				'de': [
-					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen und dir beim kopfrechnen üben helfen. ich kann dir auch das wetter sagen. sprich mit mir indem du mich mit @' + self.name + 'erwähnst.']}]
+					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen und dir beim kopfrechnen üben helfen. '
+					+ 'ich kann dir auch das wetter sagen und bei wikipedia nachschauen was etwas ist. sprich mit mir indem du mich mit @' + self.name + 'erwähnst.']}]
 		]
 
 	def parse(self, message, language, user):
@@ -83,7 +85,7 @@ class stupidbot():
 		if '@'+self.name in message:
 			answer = False
 			# list of skills according to method names.
-			skills = ['mentalarithmetic', 'googleweather']
+			skills = ['mentalarithmetic', 'googleweather', 'wikipedia']
 			for skill in skills:
 				answer = getattr(self, skill)(message)
 				if answer:
@@ -201,4 +203,31 @@ class stupidbot():
 							'verzeihung, ich habe wirklich höflich gefragt aber auch keine antwort bekommen.']
 						}
 					return answer[self.language][random.randint(0,len(answer[self.language])-1)]
+		return False
+
+	def wikipedia(self, message):
+		if re.search('what is|tell me about|was ist|sag mir was zu', message, re.IGNORECASE | re.DOTALL):
+			topic = re.search(r'(?:what is|tell me about|was ist|sag mir was zu).+?(?:a|an|the|ein|eine|der|die|das)*([\w\s\(\)]{1,})', message, re.IGNORECASE | re.DOTALL)
+			topic = topic[1].replace('@'+self.name, '').replace(' ', '+')
+			wcode = self.sourcecode('https://' + self.language + '.wikipedia.org/w/index.php?search=' + topic)
+			data = None
+			if wcode:
+				data = re.search(r'<p>(.*?)</p>.*?(?:<ul>|<p>)(.*?)(?:</p>|<ul>)', wcode, re.IGNORECASE | re.DOTALL)
+				if data is not None:
+					answer = {
+						'en': [
+							'wikipedia says: {0}\nis not necessarily correct and most probably incomplete.'],
+						'de': [
+							'wikipedia sagt: {0}\nist nicht notwendigerweise richtig und wahrscheinlich unvollständig.']
+						}
+					result = re.sub('<.*?>|&#.+?;', '', re.sub('<li.*?>', '* ', data[0]))
+					return answer[self.language][0].format(result).lower()
+			if not wcode or data is None:
+				answer = {
+					'en': [
+						'sorry, i kindly asked but did not get a response too.'],
+					'de': [
+						'verzeihung, ich habe wirklich höflich gefragt aber auch keine antwort bekommen.']
+					}
+				return answer[self.language][random.randint(0,len(answer[self.language])-1)]
 		return False
