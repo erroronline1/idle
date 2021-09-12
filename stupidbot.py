@@ -86,6 +86,8 @@ class stupidbot():
 			skills = ['mentalarithmetic', 'googleweather']
 			for skill in skills:
 				answer = getattr(self, skill)(message)
+				if answer:
+					break
 			# if skills did non respond search generic responses
 			if not answer:
 				for keywords in self.generic:
@@ -122,10 +124,11 @@ class stupidbot():
 		if (re.search('calculate|math|mental|rechnen', message, re.IGNORECASE | re.DOTALL) or
 			self.expects is not None and self.expects['skill'] == 'mentalarithmetic'):
 			def calculation():
-				operation = ['+', '-', '*', '/']
+				operation = [[100, '+', 100], [100, '-', 99], [100, '*', 20], [150, '/', 12]]
 				a = ''
 				while a == '' or not isinstance(self.expects['value'], int) or self.expects['value'] < 0: # avoid floats and negative numbers
-					a = str(random.randint(1, 100)) + operation[random.randint(0, len(operation)-1)] + str(random.randint(1, 10))
+					op = operation[random.randint(0, len(operation)-1)]
+					a = str(random.randint(1, op[0])) + op[1] + str(random.randint(1, op[2]))
 					self.expects['value'] = eval(a)
 				return a
 			if self.expects is None:
@@ -153,6 +156,16 @@ class stupidbot():
 				value = self.expects['value']
 				self.expects = None
 				return answer[self.language][random.randint(0,len(answer[self.language])-1)].format(value)
+			else:
+				answer = {
+					'en': [
+						'{0} the answer is {1}!'],
+					'de': [
+						'{0} das ergebnis ist {1}!']
+					}
+				value = self.expects['value']
+				self.expects = None
+				return answer[self.language][random.randint(0,len(answer[self.language])-1)].format('@'+self.user, value)
 		return False
 
 	def googleweather(self, message):
@@ -179,7 +192,7 @@ class stupidbot():
 							'de': [
 								'das wetter für {0} wird als {1} gemeldet, bei {2}°c und einer niederschlagswahrscheinlichkeit von {3}.']
 							}
-						return answer[self.language][0].format(data[0][2], data[0][3], data[0][0], data[0][1])			
+						return answer[self.language][0].format(data[0][2], data[0][3], data[0][0], data[0][1]).lower()
 				else:
 					answer = {
 						'en': [
