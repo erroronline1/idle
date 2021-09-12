@@ -6,7 +6,6 @@ class stupidbot():
 	def __init__(self, name):
 		self.expects = None
 		self.name = name
-		self.location = '69257 wiesenbach' # occasionally useful for skills. currently hardcoded for anarchychat being a strictly locally used application 
 		self.default = {
 			'en': [
 				'{0}, i don\'t know how to answer that...', 
@@ -62,7 +61,7 @@ class stupidbot():
 					'Fritzchen sitzt am See und angelt. Ein Spaziergänger fragt: "Und, beißen die Fische?" Fritzchen antwortet entnervt: "Nein, Sie können sie, ruhig streicheln."',
 					'Junge: "Was ist ein Rotkehlchen?" Schwester: "Ach, irgend so ein verrückter Fisch!" Junge: "Hier steht aber: Hüpft von Ast zu Ast!" Schwester: "Da siehst du, wie verrückt der ist!"',
 					'Fragt der Lehrer: "Wer von euch kann mir sechs Tiere nennen, die in Australien leben?" Meldet sich Fritzchen: "Ein Koala und fünf Kängurus.']}],
-			['funny|thank|lustig|danke|haha', {
+			['funny|thank|good bot|lustig|danke|guter bot|haha', {
 				'en': [
 					'i try my very best.',
 					'you\'re welcome {0}!'],
@@ -71,9 +70,9 @@ class stupidbot():
 					'immer gern {0}!']}],
 			['skill|can you|help|fähigkeit|kannst du|hilfe', {
 				'en': [
-					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes and help you train mental arithmetics. i can also tell you the weather for ' + self.location + '. interact with me by mentioning me with @' + self.name + '.'],
+					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes and help you train mental arithmetics. i can also tell you the weather. interact with me by mentioning me with @' + self.name + '.'],
 				'de': [
-					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen und dir beim kopfrechnen üben helfen. ich kann dir auch das wetter für ' + self.location + ' sagen. sprich mit mir indem du mich mit @' + self.name + 'erwähnst.']}]
+					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen und dir beim kopfrechnen üben helfen. ich kann dir auch das wetter sagen. sprich mit mir indem du mich mit @' + self.name + 'erwähnst.']}]
 		]
 
 	def parse(self, message, language, user):
@@ -157,23 +156,36 @@ class stupidbot():
 		return False
 
 	def googleweather(self, message):
-		if re.search('weather|rain|temperature|wetter|regen|regnet|warm|temperatur', message, re.IGNORECASE | re.DOTALL):
-			answer = {
-				'en': [
-					'sorry, i kindly asked but did not get a response too.'],
-				'de': [
-					'verzeihung, ich habe wirklich höflich gefragt aber auch keine antwort bekommen.']
-				}
-			gcode = self.sourcecode('https://www.google.com/search?q=weather+' + self.location.replace(' ', '+'))
-			if gcode:
-				data = re.findall(r'id="wob_tm".+?>(\d+).+?id="wob_pp".*?>(.+?)<.+?id="wob_loc">(.+?)<.*?id="wob_dc">(.+?)<', gcode, re.IGNORECASE | re.DOTALL)
-				if len(data):
+		if (re.search('weather|rain|temperature|wetter|regen|regnet|warm|temperatur', message, re.IGNORECASE | re.DOTALL) or
+			self.expects is not None and self.expects['skill'] == 'googleweather'):
+			if self.expects is None:
+				self.expects = {'skill': 'googleweather'}
+				answer = {
+					'en': [
+						'{0} where should i check for the weather?'],
+					'de': [
+						'{0} für welchen ort soll ich das wetter nachfragen?']
+					}
+				return answer[self.language][0].format('@'+self.user)
+			else:
+				self.expects = None
+				gcode = self.sourcecode('https://www.google.com/search?q=weather+' + message.replace('@'+self.name, '').replace(' ', '+'))
+				if gcode:
+					data = re.findall(r'id="wob_tm".+?>(\d+).+?id="wob_pp".*?>(.+?)<.+?id="wob_loc">(.+?)<.*?id="wob_dc">(.+?)<', gcode, re.IGNORECASE | re.DOTALL)
+					if len(data):
+						answer = {
+							'en': [
+								'the weather for {0} is reportedly {1} with {2}°c and rainfall probability of {3}.'],
+							'de': [
+								'das wetter für {0} wird als {1} gemeldet, bei {2}°c und einer niederschlagswahrscheinlichkeit von {3}.']
+							}
+						return answer[self.language][0].format(data[0][2], data[0][3], data[0][0], data[0][1])			
+				else:
 					answer = {
 						'en': [
-							'the weather for {0} is reportedly {1} with {2}°c and rainfall probability of {3}.'],
+							'sorry, i kindly asked but did not get a response too.'],
 						'de': [
-							'das wetter für {0} wird als {1} gemeldet, bei {2}°c und einer niederschlagswahrscheinlichkeit von {3}.']
+							'verzeihung, ich habe wirklich höflich gefragt aber auch keine antwort bekommen.']
 						}
-					return answer[self.language][0].format(data[0][2], data[0][3], data[0][0], data[0][1])			
-			return answer[self.language][random.randint(0,len(answer[self.language])-1)]
+					return answer[self.language][random.randint(0,len(answer[self.language])-1)]
 		return False
