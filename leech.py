@@ -1,6 +1,6 @@
-import json
-import re
-import requests
+'''
+batch download files according to define sites and sourcecode patterns
+'''
 import sys
 import os
 import threading
@@ -9,6 +9,9 @@ import itertools
 import time
 import getpass
 from datetime import date, datetime
+import json
+import re
+import requests
 
 print ('''
      _             _   
@@ -99,8 +102,19 @@ HELPTEXT= '''
     extend whole dictionaries/objects if multiple subsites demand different patterns
 '''
 
-#load settings
+#init logfile, write session start and parameters for backtracking
+LOGFILE=open('leech.log', 'a')
+LOGFILE.write('\n\nsession on ' + datetime.now().strftime('%Y-%m-%d %H:%M') + ' started with >' + ' '.join(sys.argv) + '\n')
+
+def log(msg):
+	'''log routine writing to file and terminal'''
+	LOGFILE.write( msg + '\n' )
+	sys.stdout.write( '\r' + msg + '\n' )
+	sys.stdout.flush()
+
+
 try:
+	'''load settings'''
 	with open('leech.json', 'r') as jsonfile:
 		SETTINGS= json.loads(jsonfile.read().replace('\n', ''))
 except:
@@ -115,21 +129,11 @@ DOWNLOADED=[]						# future list of successful downloads
 THREAD_COUNTER = 0					# init variable
 ATTEMPT=SETTINGS['attempts']		# init and set variable that will be counted down
 
-TERMINALWIDTH, terminalheight = shutil.get_terminal_size(0)
-terminalheight = 'linter, please ignore unused ' + str(terminalheight)
+TERMINALWIDTH, TERMINALHEIGHT = shutil.get_terminal_size(0)
+TERMINALHEIGHT = 'linter, please ignore unused ' + str(TERMINALHEIGHT)
 
-#init logfile, write session start and parameters for backtracking
-LOGFILE=open('leech.log', 'a')
-LOGFILE.write('\n\nsession on ' + datetime.now().strftime('%Y-%m-%d %H:%M') + ' started with >' + ' '.join(sys.argv) + '\n')
-
-#log routine writing to file and terminal
-def log(msg):
-	LOGFILE.write( msg + '\n' )
-	sys.stdout.write( '\r' + msg + '\n' )
-	sys.stdout.flush()
-
-#fancy anmiation to show something's going on
 def animationbar():
+	'''fancy anmiation to show something's going on'''
 	for c in itertools.cycle(['.   ', '..  ', '... ', '....', ' ...', '  ..', '   .']):
 		if not HIDEANIMATION:
 			sys.stdout.write('\r' + c)
@@ -138,8 +142,8 @@ def animationbar():
 		else:
 			time.sleep(1)
 
-#retrieve source code
 def get_source( link, postdata ):
+	'''retrieve source code'''
 	try:
 		cookies=''
 		if postdata:
@@ -156,8 +160,9 @@ def get_source( link, postdata ):
 	except:
 		log( '[~] connection error with {0}'.format(link) )
 
-#download file
-def requesthandle(site, file, savedestination ):
+
+def requesthandle(file, savedestination ):
+	'''download file'''
 	global FILELIST
 	global THREAD_COUNTER
 	THREAD_COUNTER += 1
@@ -188,18 +193,18 @@ def requesthandle(site, file, savedestination ):
 		log ('[~] general error downloading {0} in attempt {1} of {2}'.format(errorcase, SETTINGS['attempts'] - ATTEMPT + 1, SETTINGS['attempts']))
 	THREAD_COUNTER -= 1
 
-#analyze sourcecode and create file list according to matches
 def analyze(site, src, viewsource):
+	'''analyze sourcecode and create file list according to matches'''
 	for url in src['url']:
 		try:
 			ressource = get_source( url, src['postdata'] if 'postdata' in src else False )
-			if (type(viewsource) is str and url == viewsource ) or (type(viewsource) is bool and viewsource):
+			if (isinstance(viewsource, str) and url == viewsource ) or (isinstance(viewsource, bool) and viewsource):
 				sys.stdout.write( '\r     ' + ressource[0] + '\n' )
 				sys.stdout.flush()
 			files = re.findall(src['pattern'], ressource[0], re.IGNORECASE | re.DOTALL)
 		except:
 			continue
-		if not len(files):
+		if len(files) < 1:
 			log('[~] no files found on [{0}] {1}'.format(site, url))
 			sys.stdout.write( '\r     still analyzing source [' + site + ']' )
 			sys.stdout.flush()
@@ -212,12 +217,12 @@ def analyze(site, src, viewsource):
 				file=tuple([file])
 			#handle filepath and filename concatenation according to settings
 			for s in src['filepath']:
-				if type(s) is int:
+				if isinstance(s, int):
 					filepath += file[s]
 				else:
 					filepath += s
 			for s in src['filename']:
-				if type(s) is int:
+				if isinstance(s, int):
 					filename += '_' + re.sub(r'(?![# \.-])\W', '', file[s].split('/')[-1] )
 				else:
 					filename += s
@@ -225,7 +230,7 @@ def analyze(site, src, viewsource):
 				filename = filename[1:]
 			#strip occasional whitespaces
 			filepath=filepath.strip()
-			#define result... 
+			#define result...
 			insert=[filepath, filename, ressource[1]] #with ressource[1] being cookies
 			#...and add to list
 			if site in FILELIST:
@@ -238,14 +243,14 @@ def analyze(site, src, viewsource):
 			sys.stdout.write( '\r' + str(f) + '\n' )
 			sys.stdout.flush()
 
-#download according to FILELIST
 def download(site):
+	'''download according to FILELIST'''
 	for file in FILELIST[site]:
 		if not file in DOWNLOADED:
 			savedestination = os.path.join( os.getcwd(), SETTINGS['folderprefix'] + site + '_' + date.today().strftime('%Y%m%d') )
 			if not os.path.isdir(savedestination):
 				os.mkdir( savedestination )
-			_t = threading.Thread( target = requesthandle, args = (site, file, savedestination) )
+			_t = threading.Thread( target = requesthandle, args = (file, savedestination) )
 			_t.daemon = True
 			_t.start()
 			while THREAD_COUNTER >= SETTINGS['max_threads']:
@@ -254,13 +259,14 @@ def download(site):
 		pass
 
 def main(explicit, viewsource):
+	'''main function'''
 	global HIDEANIMATION
 	global FOUNDFILES
 	global ATTEMPT
 
 	print(('\n[!] greedy download' if not analyseonly else 'analyse only') + ' initialized. see leech.log-file to reconstruct results.')
 	print('[!] starting analysis of ' + ( explicit if explicit else str(len(SETTINGS['sources'])) + ' sources' ) + ' on ' + datetime.now().strftime('%Y-%m-%d %H:%M') +'. please stand by.\n')
-	
+
 	animation = threading.Thread(target=animationbar)
 	animation.daemon = True
 	animation.start()
@@ -322,7 +328,7 @@ if __name__ == '__main__':
 	successlogger = False
 	useproxy, user, pw = False, '', ''
 
-	#argument handler	
+	#argument handler
 	#options actually ordered by importance
 	options = {'h':'--help|-h',
 		'e':'(?:--explicit|-e)[:\\s]+([^-]+\\w+)',
@@ -356,20 +362,20 @@ if __name__ == '__main__':
 
 	if not lhelp and not explicit and not analyseonly:
 		confirm = str(input('[?] without specification you are probably going to download several files from {0} sources.\n    that may take an unpredictable amount of time and data volume.\n    type "y" to proceed with analysis, "h" for help, nothing or any other key to abort: '.format(len(SETTINGS['sources']))))
-	
+
 	if confirm in ['h','help'] or lhelp:
 		print (HELPTEXT)
 		input('[?] press enter to quit...')
 	elif confirm == 'y' or explicit or analyseonly:
 		for p in SETTINGS['proxies']:
-			if len(SETTINGS['proxies'][p]):
+			if len(SETTINGS['proxies'][p]) > 0:
 				useproxy=True
 		if useproxy:
 			print('\n[?] use of proxy detected, login name and password might be necessary!\n    note that wrong values result in connection errors.')
 			user=getpass.getuser()
 			pw=getpass.getpass('    please enter password for "{0}" (hidden): '.format(user))
 			for p in SETTINGS['proxies']:
-				if len(SETTINGS['proxies'][p]) and len(user) and len(pw):
+				if len(SETTINGS['proxies'][p]) > 0 and len(user) > 0 and len(pw) > 0:
 					temp=re.findall(r'(.+?//)(.+)', SETTINGS['proxies'][p], re.IGNORECASE | re.DOTALL)
 					SETTINGS['proxies'][p] = ''.join([temp[0][0],user,':',pw,'@',temp[0][1]])
 		main(explicit, viewsource)
