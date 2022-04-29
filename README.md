@@ -33,6 +33,8 @@ automated resizing of images within the calling directory, optional including it
 ## leech
 serves to automatically download files according to linked ressources on websites. it is best used from the command line to have access to further options. this is not ai, you'll have to analyze the inhomogeneous sources by yourself beforehand in order to set up. see help for setup syntax.
 
+leech does support the use of a proxy. urllib does have issues if the proxy-configuration is the same for http and https though. but who does this beside my company anyway? handling custom or root certificates is still on my maybe-later-list. 
+
 ## proxyping
 this proof-of-concept retrieves lists of proxies and user-agents by pattern matching given websites. then it calls the specified url using the list of proxies and random user-agents. the proxies from the samples are not very reliable on connection or might need longer timeouts resulting in elongated runtime of the script. but it is quite dynamic.
 
