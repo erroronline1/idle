@@ -27,6 +27,10 @@ conversion of phonetic c for english only. platform related unicode inconsistenc
 ## circular_gallifreyan
 same as above but with graphical output. favoured grouping of characters still in console. inspired by, redone and extended in javascript for [mightyfrongs gallifreyan translation helper](https://github.com/Mightyfrong/gallifreyan-translation-helper) with a bit of participation by myself.
 
+## g_code_music
+the other day i reinvented the wheel. figured out pretty fast others had before. was still fun to write something that generates a g-code to play music with non silent stepper motors on a 3d-printer.
+the extruder moves to x50 y50 z5 after homing on start so it has a security offset. also the head moves about 20mm maximum (depending on the notes length) to x or y so it should work on almost any fdm-printer, given no silent stepper are built in.
+
 ## imgresize
 automated resizing of images within the calling directory, optional including its subdirectiories to given nesting. useful for preparing blog content or releasing storage space retrospectively after everyone forgot to set the cameras to NOT maximum resolution. recently with optional terminal parameters.
 
