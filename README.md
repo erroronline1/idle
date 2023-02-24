@@ -17,6 +17,10 @@ works quite reasonably in vsc-console and cmd as a py-script on a stable connect
 
 well, just because you could doesn't mean you should, but it was fun. at least i learned a bit about sqlite, threading and exceptions while handling the deficiencies. absolute win.
 
+## backup
+i had a medium inconvenience trying to backup. the flashdrive died and of course i hadn't saved everything as i should have. since i am not aware of clever backup options on windows i considered writing something that is hopefully a bit more efficient by only copying non existant files and overwriting only files with a newer timestamp.
+configure the local and the remote directory and occasionally define directories to exclude (like .git, __pycache__, etc.).
+
 ## circular_gallifreyan_unicode
 simplified translation from latin characters to unicode representation of circular gallifreyan
 
