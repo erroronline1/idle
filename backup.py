@@ -21,7 +21,7 @@ class Status:
 		self.terminalwidth = shutil.get_terminal_size(0).columns
 	def print(self, msg):
 		'''write'''
-		sys.stdout.write('\r' + msg + ' ' * (self.terminalwidth-len(msg)))
+		sys.stdout.write('\r' + msg[0:self.terminalwidth] + (' ' * (self.terminalwidth-len(msg)) if len(msg) < self.terminalwidth else ''))
 		sys.stdout.flush()
 	def end(self):
 		'''newline to not mess up following prints or the like'''
