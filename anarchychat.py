@@ -9,8 +9,8 @@ from pathlib import Path
 import os
 import sys
 
-# windows-specific fancyness 
-from win10toast import ToastNotifier
+# windows-specific fancyness
+from win11toast import toast
 from colorama import Fore, Style, init
 import psutil
 # possible console colors according to https://pypi.org/project/colorama/
@@ -24,7 +24,7 @@ HELLO = '''
  ___ ___ ___ ___ ___| |_ _ _ ___| |_ ___| |_
 | .'|   | .'|  _|  _|   | | |  _|   | .'|  _|
 |__,|_|_|__,|_| |___|_|_|_  |___|_|_|__,|_|
-                        |___|                 built 20210912
+                        |___|                 built 20230226
 
 by error on line 1 (erroronline.one)
 '''
@@ -41,14 +41,18 @@ DEFAULT = { # default settings
 }
 
 class anarchychat:
+	fetchProcessRun = False
+	fetchProcess = None
+	fconnection = None
+	bot = None
+	notify = True
+	latestid = 0
+	errorcounter = {'start': int(time.time()), 'count': 0}
+
 	def __init__(self, ini):
 		self.database = self.dblimit = self.interval = self.active = self.user = self.language = self.title = None # i like you too, linter
 
-		self.bot = None
 		self.defaultini = ini
-		self.notify = True
-		self.latestid = 0
-		self.errorcounter = {'start': int(time.time()), 'count': 0}
 		# set attributes according to config file or default ini
 		self.ini('get')
 		# these are the available language chunks that can be extended as required
@@ -182,7 +186,7 @@ class anarchychat:
 				os.remove(home + '/anarchychat.json')
 
 	def login(self):
-		# set username if none or already in use, or exit
+		''' set username if none or already in use, or exit '''
 		while not self.user or self.user in self.ping(self.connection, 'get'):
 			self.fprint(self.lang('setname'), color = Fore.CYAN)
 			select = str(input('> ')).strip()
@@ -200,9 +204,9 @@ class anarchychat:
 			self.start()
 		else:
 			self.exit()
-	
+
 	def start(self):
-		# start new thread for simultaneously retrieving and posting contributions and wait for input
+		''' start new thread for simultaneously retrieving and posting contributions and wait for input '''
 		self.fetchProcessRun = True
 		self.fetchProcess = threading.Thread(target = self.fetch, daemon = True)
 		self.fetchProcess.start()
@@ -215,14 +219,14 @@ class anarchychat:
 				self.exit()
 
 	def exit(self):
-		# delete user from active table, close database connection and exit program
+		''' delete user from active table, close database connection and exit program '''
 		self.fetchProcessRun = False
 		if hasattr(self, 'connection'):
 			self.ping(self.connection, 'delete', {'NAME': self.user})
 			self.connection.close()
 		self.fprint(self.lang('goodbye', self.user if self.user.lower() != '[exit]' else ''), color = Fore.CYAN)
 		time.sleep(2)
-		exit()
+		sys.exit()
 
 	def errorhandler(self, error, resume = None):
 		self.errorcounter['count'] += 1
@@ -247,23 +251,22 @@ class anarchychat:
 			return False
 
 	def fetch(self):
-		# fetch the latest contributions every so many seconds, notify about new messages and tell about being still active 
-		# needs another connection for running in separate thread
+		''' fetch the latest contributions every so many seconds, notify about new messages and tell about being still active
+			needs another connection for running in separate thread '''
 		self.fconnection = None
 		try:
 			self.fconnection = sqlite3.connect(self.database)
 			while self.fetchProcessRun:
 				cursor = self.fconnection.cursor()
-				cursor.execute('''SELECT * FROM CHAT WHERE ID > {0}'''.format(self.latestid))
+				cursor.execute(f'SELECT * FROM CHAT WHERE ID > {self.latestid}')
 				results = cursor.fetchall()
 				if len(results):
 					for result in results:
-						self.fprint ('\r{0} | {1}: {2}'.format(result[2], (self.fprint(result[1], justcolorize = Fore.YELLOW) if result[1] == self.user else result[1]), self.mention(result[3])))
+						self.fprint (f'\r{result[2]} | {(self.fprint(result[1], justcolorize = Fore.YELLOW) if result[1] == self.user else result[1])}: {self.mention(result[3])}')
 						self.latestid = result[0]
 						latestuser = result[1]
-						latestmsg = {'title': result[1], 'msg': result[3]}
-					if latestuser != self.user:
-						self.notification(latestmsg)
+					if latestuser != self.user and self.notify:
+						toast(self.title + ' | ' + result[1], result[3], on_dismissed=self.doNothing)
 					self.fprint('\r> ', newline = False)
 				# ping your name to the active list
 				self.ping(self.fconnection, 'put')
@@ -278,23 +281,19 @@ class anarchychat:
 			# see https://www.python.org/dev/peps/pep-0409/
 
 	def post(self, message, user = None):
-		# insert message and delete older entries 
+		''' insert message and delete older entries '''
 		message = message.replace('\'','\'\'')
 		try:
-			self.connection.executescript('''
-				INSERT INTO CHAT (ID, NAME, TIME, MESSAGE) VALUES (NULL, '{0}', '{1}', '{2}');
-				DELETE FROM CHAT WHERE ID IN (SELECT ID FROM CHAT ORDER BY ID DESC LIMIT (SELECT COUNT(*) FROM CHAT) OFFSET {3});
-				'''.format(
-					user if user else self.user,
-					datetime.datetime.now().strftime('%d.%m.%y %H:%M:%S'),
-					message,
-					self.dblimit))
+			self.connection.executescript(f"""
+				INSERT INTO CHAT (ID, NAME, TIME, MESSAGE) VALUES (NULL, '{user if user else self.user}', '{datetime.datetime.now().strftime("%d.%m.%y %H:%M:%S")}', '{message}');
+				DELETE FROM CHAT WHERE ID IN (SELECT ID FROM CHAT ORDER BY ID DESC LIMIT (SELECT COUNT(*) FROM CHAT) OFFSET {self.dblimit});
+				""")
 			self.connection.commit()
 		except Exception as e:
 			self.errorhandler(e, True)
 
 	def clearDB(self):
-		# truncate table
+		''' truncate table '''
 		try:
 			self.connection.executescript('''DELETE FROM CHAT; VACUUM;''')
 			self.connection.commit()
@@ -302,10 +301,10 @@ class anarchychat:
 			self.errorhandler(e, True)
 
 	def ping(self, conn, method, fields = None):
-		# connection must be passed to be usable from different threads
+		''' connection must be passed to be usable from different threads '''
 		if method == 'put':
 			try:
-				conn.execute('''INSERT OR REPLACE INTO PING (NAME, TOUCH) VALUES ('{0}', strftime('%s', 'now'));'''.format(self.user))
+				conn.execute(f"INSERT OR REPLACE INTO PING (NAME, TOUCH) VALUES ('{self.user}', strftime('%s', 'now'));")
 				conn.commit()
 			except Exception as e:
 				self.errorhandler(e, True)
@@ -323,34 +322,34 @@ class anarchychat:
 			try:
 				if fields is None:
 					cursor = conn.cursor()
-					cursor.execute('''SELECT NAME FROM PING WHERE (strftime('%s', 'now') - TOUCH) > {0};'''.format(self.active))
+					cursor.execute(f"SELECT NAME FROM PING WHERE (strftime('%s', 'now') - TOUCH) > {self.active};")
 					results = cursor.fetchall()
 					if len(results):
 						for result in results:
 							if result[0] != self.user:
 								self.post(self.fprint(self.lang('left') + self.lang('timeout'), justcolorize = Fore.CYAN), result[0])
-					conn.execute('''DELETE FROM PING WHERE (strftime('%s', 'now') - TOUCH) > {0};'''.format(self.active))
+					conn.execute(f"DELETE FROM PING WHERE (strftime('%s', 'now') - TOUCH) > {self.active};")
 				else:
-					conn.execute('''DELETE FROM PING WHERE {0}='{1}';'''.format(list(fields.keys())[0], fields[list(fields.keys())[0]]))
+					conn.execute(f"DELETE FROM PING WHERE {list(fields.keys())[0]}='{fields[list(fields.keys())[0]]}';")
 				conn.commit()
 			except Exception as e:
 				self.errorhandler(e, True)
 
-	def fprint(self, str, color = None, newline = True, justcolorize = None):
-		# more universal use and output cleansing compared to plain print()
+	def fprint(self, string, color = None, newline = True, justcolorize = None):
+		''' more universal use and output cleansing compared to plain print() '''
 		if color is not None:
-			str = f'{color}{str}{Style.RESET_ALL}'
+			string = f'{color}{string}{Style.RESET_ALL}'
 		elif justcolorize is not None:
-			str = f'{justcolorize}{str}{Style.RESET_ALL}'
+			string = f'{justcolorize}{string}{Style.RESET_ALL}'
 		if justcolorize is None:
 			terminalwidth = shutil.get_terminal_size(0)[0]
-			str = '\r' + str
+			string = '\r' + string
 			if newline:
-				str = str + ' ' * (terminalwidth- len(str)) + '\n'
-			sys.stdout.write(str)
+				string = string + ' ' * (terminalwidth- len(string)) + '\n'
+			sys.stdout.write(string)
 			sys.stdout.flush()
-		else:
-			return str
+			return
+		return string
 
 	def mention(self, message):
 		usertag = '@' + self.user
@@ -361,35 +360,34 @@ class anarchychat:
 	def lang(self, chunk, *args):
 		if chunk in self.languageChunks and self.language in self.languageChunks[chunk]:
 			return self.languageChunks[chunk][self.language].format(*args)
-		else:
-			return '*UNDEFINED LANGUAGE FOR {0}*'.format(chunk)
-		
+		return f"*UNDEFINED LANGUAGE FOR {chunk}*"
+
 	def command(self, message):
-		# filter and conditionally execute commands
+		''' filter and conditionally execute commands '''
 		if message.lower() in ('[clear]', '[löschen]'):
 			self.fprint(self.lang('clear'), color = Fore.CYAN)
 			self.clearDB()
 			return True
-		elif message.lower() in ('[exit]', '[beenden]'):
+		if message.lower() in ('[exit]', '[beenden]'):
 			self.post(self.fprint(self.lang('left'), justcolorize = Fore.CYAN))
 			return False
-		elif message.lower() in ('[help]', '[hilfe]'):
+		if message.lower() in ('[help]', '[hilfe]'):
 			self.fprint(self.lang('help'), color = Fore.CYAN)
 			return True
-		elif message.lower() in ('[interval]', '[aktualisierung]'):
+		if message.lower() in ('[interval]', '[aktualisierung]'):
 			self.fprint(self.lang('interval'), color = Fore.CYAN)
 			select=int(input('> '))
 			if 0 < select < 11:
 				self.interval = select
 			return True
-		elif message.lower() in ('[language]', '[sprache]'):
+		if message.lower() in ('[language]', '[sprache]'):
 			supported = list(self.languageChunks['lang'].keys())
 			self.fprint(self.lang('lang') +  ', '.join(supported) + ': ', color = Fore.CYAN)
 			select = str(input('> ')).lower()
 			if select in supported:
 				self.language = select
 			return True
-		elif message.lower() in ('[name]', '[name]'):
+		if message.lower() in ('[name]', '[name]'):
 			self.fprint(self.lang('name'), color = Fore.CYAN)
 			select = str(input('> ')).strip()
 			if select in self.ping(self.connection, 'get'):
@@ -398,44 +396,39 @@ class anarchychat:
 				self.ping(self.connection, 'delete', {'NAME': self.user})
 				self.user = select
 			return True
-		elif message.lower() in ('[notify]', '[benachrichtigung]'):
+		if message.lower() in ('[notify]', '[benachrichtigung]'):
 			self.notify = not self.notify
 			self.fprint(self.lang('notify', self.lang('on') if self.notify else self.lang('off')), color = Fore.CYAN)
 			return True
-		elif message.lower() in ('[reset]', '[zurücksetzen]'):
+		if message.lower() in ('[reset]', '[zurücksetzen]'):
 			self.ini('delete')
 			self.ini('get')
 			self.fprint(self.lang('reset'), color = Fore.CYAN)
 			return True
-		elif message.lower() in ('[save]', '[speichern]'):
+		if message.lower() in ('[save]', '[speichern]'):
 			self.ini('put')
 			self.fprint(self.lang('save'), color = Fore.CYAN)
 			return True
-		elif message.lower() in ('[users]', '[nutzer]'):
+		if message.lower() in ('[users]', '[nutzer]'):
 			self.fprint(', '.join(self.ping(self.connection, 'get')), color = Fore.CYAN)
 			return True
-		else:
-			terminalwidth = shutil.get_terminal_size(0)[0]
-			# clear input display - supports multi line inputs
-			# may be ugly if console dimensions are changed during use
-			linter=0 # highlighting unused i distracts me...
-			for i in range(0, math.ceil(len(message) / terminalwidth)):
-				linter += i
-				self.fprint('\033[A' + (' ' * (terminalwidth)) + '\033[A')
-			if len(message):
-				self.post(message)
-				if self.bot is not None:
-					botmsg = self.bot.parse(message, self.language, self.user)
-					if botmsg:
-						self.post(botmsg, self.bot.name)
-			return True
+		terminalwidth = shutil.get_terminal_size(0)[0]
+		# clear input display - supports multi line inputs
+		# may be ugly if console dimensions are changed during use
+		linter=0 # highlighting unused i distracts me...
+		for i in range(0, math.ceil(len(message) / terminalwidth)):
+			linter += i
+			self.fprint('\033[A' + (' ' * (terminalwidth)) + '\033[A')
+		if len(message):
+			self.post(message)
+			if self.bot is not None:
+				botmsg = self.bot.parse(message, self.language, self.user)
+				if botmsg:
+					self.post(botmsg, self.bot.name)
+		return True
 
-	def notification(self, message):
-		# notification handling as an easily adaptable method for your convenience 
-		if self.notify:
-			if not hasattr(self, 'toast'):
-				self.toast = ToastNotifier()
-			self.toast.show_toast(self.title + ' | ' + message['title'], message['msg'], threaded = True, icon_path = None, duration = 3)
+	def doNothing(self, *args):
+		pass
 
 if __name__ == '__main__':
 	# anarchychat is supposed to work without the stupidbot as well
