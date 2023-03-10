@@ -6,14 +6,17 @@ import shutil
 import sys
 import math
 
-src = {
-	'startDir': 'C:/Users/dev/Documents',
-	'excludeDir': ['.git', 'git', '__pycache__', 'build', 'dist', 'Eigene Bilder', 'Eigene Videos', 'Eigene Musik', 'Dell']
+paths = [
+	{'src': {
+		'startDir': 'C:/Users/dev/Documents',
+		'excludeDir': ['.git', 'git', '__pycache__', 'build', 'dist', 'Eigene Bilder', 'Eigene Videos', 'Eigene Musik', 'Dell']
+		},
+	'dst': {
+		'startDir': '//192.168.178.26/Public/doc/dev',
+		'excludeDir': ['ancient']
+		}
 	}
-dst = {
-	'startDir': '//192.168.178.26/Public/doc/dev',
-	'excludeDir': ['ancient']
-	}
+]
 
 class Status:
 	'''writes a status message without newline'''
@@ -63,6 +66,7 @@ def _copy(origin, backup):
 	_status.end()
 
 if __name__ == '__main__':
-	local = _tree(src['startDir'], src['excludeDir'])
-	remote = _tree(dst['startDir'], dst['excludeDir'])
-	_copy(local, remote)
+	for setting in paths:
+		local = _tree(setting['src']['startDir'], setting['src']['excludeDir'])
+		remote = _tree(setting['dst']['startDir'], setting['dst']['excludeDir'])
+		_copy(local, remote)
