@@ -58,3 +58,6 @@ easy-to-implement and expendable skills beside generic responses. language accor
 
 ## t2aa
 text-2-ascii-art can be used from the command line. found it to be useful for structuring and commenting code.
+
+## webcam
+captures a webcam image, stores and uploads to webserver at a configurable interval. low traffic but still possible to watch your printer running out of filament. i don't have money for a raspberry pi...
