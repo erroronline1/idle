@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 import threading
 import time
+from datetime import datetime
+import copy
 import json
 import cv2
 import pysftp
@@ -47,17 +49,10 @@ class Webcam:
 		'''save img locally and upload to webserver'''
 		while True:
 			if self.ret:
+				self.frame = cv2.putText(self.frame, datetime.now().isoformat(timespec='seconds'), (10,20), cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 1, cv2.LINE_AA)
 				cv2.imwrite(self.setup['homedir'], self.frame)
 				self.msg(self.upload(self.setup['ftpcredentials'], self.setup['remotedir'], self.setup['homedir']))
 			time.sleep(self.setup['refresh'])
-
-	def goodbye_upload(self) -> None:
-		'''uploads last image with offline note on regular exit'''
-		goodbye = cv2.imread(self.setup['homedir'])
-		goodbye = cv2.putText(goodbye, 'offline', (50,75), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 3, cv2.LINE_AA)
-		cv2.imwrite(self.setup['homedir'], goodbye)
-		self.upload(self.setup['ftpcredentials'], self.setup['remotedir'], self.setup['homedir'])
-
 
 	def camera_handler(self) -> bool:
 		'''displays camera picture or returns loss of camera'''
@@ -98,7 +93,6 @@ class Webcam:
 		'''release and destroy window'''
 		self.camera.release()
 		cv2.destroyAllWindows()
-		self.goodbye_upload()
 
 	def available_cameras(self) -> None:
 		'''list available camera indices'''
@@ -119,9 +113,10 @@ class Webcam:
 if __name__=="__main__":
 	cam: Webcam = Webcam({
 		'cam': 1,
-   		'rotate':cv2.ROTATE_180, #cv2.ROTATE_90_COUNTERCLOCKWISE, cv2.ROTATE_180
+   		'rotate':cv2.ROTATE_90_COUNTERCLOCKWISE, #cv2.ROTATE_90_COUNTERCLOCKWISE, cv2.ROTATE_180
 		#'upload': False # false for positioning setup without looking within the code where to disable...
 	})
-
-	cam.msg(f"[!] launching cam {cam.setup['cam']}. current settings are:\n{json.dumps(cam.setup, indent=4)}\n")
+	current=copy.deepcopy(cam.setup)
+	current.pop('ftpcredentials', None)
+	cam.msg(f"[!] launching cam {cam.setup['cam']}. current settings are:\n{json.dumps(current, indent=4)}\n")
 	cam.start()
