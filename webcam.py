@@ -10,6 +10,7 @@ from datetime import datetime
 import copy
 import json
 import cv2
+import numpy as np
 import pysftp
 import noyb # contains nothing of your business ;)
 
@@ -20,6 +21,8 @@ class Webcam:
 	setup: dict = {
 		'cam': 0,
 		'rotate': None,
+		'brightness': 1,
+		'contrast': 1,
 		'refresh': 5,
 		'upload': True,
 		'homedir': os.path.normpath(Path.home().joinpath('pywebcam.jpg')),
@@ -61,6 +64,11 @@ class Webcam:
 			if self.ret:
 				if self.setup['rotate']:
 					self.frame = cv2.rotate(self.frame, self.setup['rotate'])
+				if self.setup['contrast'] > 1 or self.setup['brightness'] > 1:
+					self.frame = np.int16(self.frame)
+					self.frame = self.frame * (self.setup['contrast']/127+1) - self.setup['contrast'] + self.setup['brightness']
+					self.frame = np.clip(self.frame, 0, 255)
+					self.frame = np.uint8(self.frame)
 				cv2.imshow(f'webcam refresh @{self.setup["refresh"]} seconds, press q to quit', self.frame)
 			else:
 				self.camera.release()
@@ -112,9 +120,11 @@ class Webcam:
 
 if __name__=="__main__":
 	cam: Webcam = Webcam({
-		'cam': 1,
-   		'rotate':cv2.ROTATE_90_COUNTERCLOCKWISE, #cv2.ROTATE_90_COUNTERCLOCKWISE, cv2.ROTATE_180
-		#'upload': False # false for positioning setup without looking within the code where to disable...
+		'cam': 0,
+   		'rotate': None, #cv2.ROTATE_90_COUNTERCLOCKWISE, #cv2.ROTATE_90_COUNTERCLOCKWISE, cv2.ROTATE_180
+		#'upload': False, # false for positioning setup without looking within the code where to disable...
+		'brightness': 50, # 1 - 127
+		'contrast': 30 # 1 - 127
 	})
 	current=copy.deepcopy(cam.setup)
 	current.pop('ftpcredentials', None)
