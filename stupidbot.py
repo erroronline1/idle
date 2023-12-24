@@ -70,10 +70,10 @@ class stupidbot():
 					'immer gern {0}!']}],
 			['skill|can you|help|fähigkeit|kannst du|hilfe', {
 				'en': [
-					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes, some stupid riddles and help you train mental arithmetics. '
+					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes, some stupid riddles and help you train mental arithmetics. i recently learned mastermind.'
 					+ ' i can also tell you the weather and tell about things on wikipedia. interact with me by mentioning me with @' + self.name + '.'],
 				'de': [
-					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen, scherzfragen stellen und dir beim kopfrechnen üben helfen. '
+					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen, scherzfragen stellen und dir beim kopfrechnen üben helfen. kürzlich habe ich mastermind gelernt.'
 					+ 'ich kann dir auch das wetter sagen und bei wikipedia nachschauen was etwas ist. sprich mit mir indem du mich mit @' + self.name + 'erwähnst.']}]
 		]
 
@@ -85,7 +85,7 @@ class stupidbot():
 		if '@'+self.name in message:
 			answer = False
 			# list of skills according to method names.
-			skills = ['mentalarithmetic', 'googleweather', 'wikipedia', 'conundrum']
+			skills = ['mentalarithmetic', 'googleweather', 'wikipedia', 'conundrum', 'mastermind']
 			for skill in skills:
 				answer = getattr(self, skill)(message)
 				if answer:
@@ -275,4 +275,61 @@ class stupidbot():
 			if re.search(str(expected_value), message, re.IGNORECASE):
 				return guessed[self.language][random.randint(0, len(guessed[self.language])-1)] + ' ' + riddles[self.language][selected_set][1]
 			return reveal[self.language][random.randint(0, len(reveal[self.language])-1)] + ' ' + riddles[self.language][selected_set][1]
+		return False
+
+	def mastermind(self, message):
+		greet={
+			'en':['type in four different numbers between 0 and 9, i will tell you if any is correct and/or on the right position: '],
+			'de':['rate vier zahlen zwischen 0 und 9. ich sage dir ob welche richtig und/oder an der richtigen stelle stehen: ']
+		}
+		error={
+			'en':['nah, this is not the amount of numbers to guess.'],
+			'de':['nö, die anzahl an ratezahlen ist nicht richtig.']
+		}
+		positionstr={
+			'en':['number(s) at right position.'],
+			'de':['zahl(en) an der richtigen stelle.']
+		}
+		numberstr={
+			'en':['number(s) guessed but not their position.'],
+			'de':['zahl(en) erraten aber nicht ihre position.']
+		}
+		again={
+			'en':['again!'],
+			'de':['nochmal!']
+		}
+		done={
+			'en':['congratulations! number of guesses:'],
+			'de':['glückwunsch! benötigte versuche:']
+		}
+
+		if (re.search('mastermind|cows and bulls|superhirn|logiktrainer', message, re.IGNORECASE | re.DOTALL) or
+			self.expects is not None and self.expects['skill'] == 'mastermind'):
+			if self.expects is None:
+				solution=random.sample(range(0,9),4)
+				self.expects = {'skill': 'mastermind', 'solution': [str(x) for x in solution], 'guesses': 0}
+				return '@'+self.user +', ' + greet[self.language][0]
+
+			answer=''
+			guess=re.findall(r'\d', message)
+			print (guess, self.expects['solution'])
+			if len(guess) != 4:
+				return '@'+self.user +', ' + error[self.language][0]
+			self.expects['guesses'] += 1
+			if guess != self.expects['solution']:
+				number=0 
+				position=0 
+				for x in self.expects['solution']: 
+					if x in guess: 
+						if guess.index(x)==self.expects['solution'].index(x):
+							position+=1
+						else: 
+							number+=1
+				if position: 
+					answer = f'{answer} {position} {positionstr[self.language][0]}'
+				if number: 
+					answer = f'{answer} {number} {numberstr[self.language][0]}'
+				return f'{answer} {again[self.language][0]}'
+			else: 
+				return f"{done[self.language][0]} {self.expects['guesses']}"
 		return False
