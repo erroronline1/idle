@@ -2,6 +2,25 @@ import random
 import re
 import requests
 
+class xinarow: 
+	def __init__(self, x, y):
+		self.board=[[' ']*x for n in range(y)] 
+	def draw(self, x, y, player):
+		x,y=x-1,y-1 
+		if self.board[y][x] == ' ': 
+			self.board[y][x]=player 
+			return True 
+		else: 
+			return False 
+	def free(self): 
+		f=[] 
+		for i in range(len(self.board)):
+			for j in range(len(self.board[i])):
+				if self.board[i][j]==' ': 
+					f.append([i,j])
+		return f
+
+
 class stupidbot():
 	expects = None
 	language = None
@@ -70,11 +89,11 @@ class stupidbot():
 					'immer gern {0}!']}],
 			['skill|can you|help|fähigkeit|kannst du|hilfe', {
 				'en': [
-					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes, some stupid riddles and help you train mental arithmetics. i recently learned mastermind.'
+					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes, some stupid riddles and help you train mental arithmetics. i recently learned mastermind and tic-tac-toe.'
 					+ ' i can also tell you the weather and tell about things on wikipedia. interact with me by mentioning me with @' + self.name + '.'],
 				'de': [
-					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen, scherzfragen stellen und dir beim kopfrechnen üben helfen. kürzlich habe ich mastermind gelernt.'
-					+ 'ich kann dir auch das wetter sagen und bei wikipedia nachschauen was etwas ist. sprich mit mir indem du mich mit @' + self.name + 'erwähnst.']}]
+					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen, scherzfragen stellen und dir beim kopfrechnen üben helfen. kürzlich habe ich mastermind und drei-gewinnt gelernt.'
+					+ ' ich kann dir auch das wetter sagen und bei wikipedia nachschauen was etwas ist. sprich mit mir indem du mich mit @' + self.name + ' erwähnst.']}]
 		]
 
 	def parse(self, message, language, user):
@@ -85,7 +104,7 @@ class stupidbot():
 		if '@'+self.name in message:
 			answer = False
 			# list of skills according to method names.
-			skills = ['mentalarithmetic', 'googleweather', 'wikipedia', 'conundrum', 'mastermind']
+			skills = ['mentalarithmetic', 'googleweather', 'wikipedia', 'conundrum', 'mastermind', 'tictactoe']
 			for skill in skills:
 				answer = getattr(self, skill)(message)
 				if answer:
@@ -183,13 +202,13 @@ class stupidbot():
 				self.expects = None
 				gcode = self.sourcecode('https://www.google.com/search?q=weather+' + message.replace('@'+self.name, '').replace(' ', '+'))
 				if gcode:
-					data = re.findall(r'id="wob_tm".+?>(\d+).+?id="wob_pp".*?>(.+?)<.+?id="wob_loc">(.+?)<.*?id="wob_dc">(.+?)<', gcode, re.IGNORECASE | re.DOTALL)
+					data = re.findall(r'class="BBwThe">(.+?)<.*?id="wob_tm".+?>(\d+).+?id="wob_pp".*?>(.+?)<.*?id="wob_dc">(.+?)<', gcode, re.IGNORECASE | re.DOTALL)
 					if len(data):
 						answer = {
 							'en': [
-								'the weather for {0} is reportedly {1} with {2}°c and rainfall probability of {3}.'],
+								'the weather for {2} is reportedly {1} with {3}°c and rainfall probability of {0}.'],
 							'de': [
-								'das wetter für {0} wird als {1} gemeldet, bei {2}°c und einer niederschlagswahrscheinlichkeit von {3}.']
+								'das wetter für {2} wird als {1} gemeldet, bei {3}°c und einer niederschlagswahrscheinlichkeit von {0}.']
 							}
 						return answer[self.language][0].format(data[0][2], data[0][3], data[0][0], data[0][1]).lower()
 				else:
@@ -333,3 +352,120 @@ class stupidbot():
 			else: 
 				return f"{done[self.language][0]} {self.expects['guesses']}"
 		return False
+	
+	def tictactoefield(self, board_x=[]):
+		x,y=len(board_x[0]),len(board_x)
+		board=''
+		for i in range(y*2+1): 
+			for j in range(x): 
+				if i%2: 
+					board += '| '
+					board += board_x[i//2][j] if board_x else ' '
+					board += ' '
+				else: 
+					board += ' ---' 
+			board += ('|' if i%2 else '') + '\n'
+		return board
+
+	def tictactoewinner(self, board_x):
+		# scalable to every size dependable of board_x list BUT winner can only be determined on square board at the moment
+		lines=len(board_x) 
+		columns=len(board_x[0])
+		# rearrange entries to vertical
+		board_y=[] # vertical 
+		for y in range(0,columns):
+			for x in range(0,lines):
+				try: 
+					board_y[y]
+				except: 
+					board_y.append([])
+				board_y[y].append(board_x[x][y]) 
+		# rearrange entries to diagonal
+		board_ul=[] # from upper left 
+		board_ur=[] # from upper right 
+		readxy=[[0]*lines] 
+		readxy.append([]) 
+		for i in range(columns):
+			if i>0: 
+				readxy[0].append(i)
+			readxy[1].append(i)
+		readxy[1].extend([columns-1]*(lines-1)) 
+		#print('start coordinates: ',readxy)
+		maxlen=lines if lines<=columns else columns
+		for y in range(0,lines+columns-1): 
+			for x in range(0,maxlen):
+				try: 
+					board_ul[y]
+				except: 
+					board_ul.append([])
+					board_ur.append([])
+				uly=readxy[1][y]-x 
+				ulx=readxy[0][y]+x 
+				if uly<0: 
+					continue 
+				elif ulx>maxlen-1: 
+					continue 
+				else: 
+					board_ul[y].append(board_x[uly][ulx]) 
+
+				ury=readxy[0][y]+x 
+				urx=readxy[0][-1-y]+x 
+				if ury<0: 
+					continue 
+				elif urx>maxlen-1: 
+					continue 
+				else: 
+					board_ur[y].append(board_x[ury][urx])         
+
+		win1=['X']*maxlen 
+		win2=['O']*maxlen 
+		if win1 in board_x+board_y+board_ul+board_ur and win2 in board_x+board_y+board_ul+board_ur:
+			return ('draw') 
+		elif win1 in board_x+board_y+board_ul+board_ur:
+			return('X')
+		elif win2 in board_x+board_y+board_ul+board_ur:
+			return('O')
+		else: 
+			return False 
+
+	def tictactoe(self, message):
+		draw={
+			'en':['please type in x-y coordinats for your draw:'],
+			'de':['bitte gib die x-y kordinaten für deinen zug an:']
+		}
+		forbidden={
+			'en':['field already set.'],
+			'de':['feld bereits belegt.']
+		}
+		forbidden2={
+			'en':['field out of bounds.'],
+			'de':['feld außerhalb des spielfelds.']
+		}
+		end={
+			'en':{'X': 'congratulations, you won!', 'O': 'i won!','draw': 'every one is a winner!'},
+			'de':{'X': 'glückwunsch, du hast gewonnen!', 'O': 'ich habe gewonnen!', 'draw': "jeder ist ein gewinner!"}
+		}
+
+		if (re.search('tictactoe|tix tac toe|tic-tac-toe|drei gewinnt|drei-gewinnt|3 gewinnt', message, re.IGNORECASE | re.DOTALL) or
+			self.expects is not None and self.expects['skill'] == 'tictactoe'):
+			if self.expects is None:
+				self.expects={'skill': 'tictactoe', 'game': xinarow(3,3)}
+				return draw[self.language][0] + '\n' + self.tictactoefield(self.expects['game'].board)
+			else:
+				coords=re.findall(r'\d', message)
+				coords=[int(x) for x in coords]
+				if coords[0] > len(self.expects['game'].board) or coords[1] > len(self.expects['game'].board[0]):
+					return f'{forbidden2[self.language][0]} {draw[self.language][0]}'
+				if not self.expects['game'].draw(coords[0],coords[1],'X'):
+					return f'{forbidden[self.language][0]} {draw[self.language][0]}'
+				if len(self.expects['game'].free()):
+					field=random.sample(self.expects['game'].free(),1)
+					self.expects['game'].draw(int(field[0][1])+1,int(field[0][0])+1,'O')
+				
+				# evaluate winner 
+				winner=self.tictactoewinner(self.expects['game'].board)
+				if winner:
+					winboard=self.expects['game'].board
+					self.expects = None
+					return end[self.language][winner] + '\n' + self.tictactoefield(winboard)
+				return draw[self.language][0] + '\n' + self.tictactoefield(self.expects['game'].board)
