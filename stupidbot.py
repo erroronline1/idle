@@ -90,10 +90,10 @@ class stupidbot():
 			['skill|can you|help|fähigkeit|kannst du|hilfe', {
 				'en': [
 					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes, some stupid riddles and help you train mental arithmetics. i recently learned mastermind, rock-paper-scissors and tic-tac-toe. i am not good at the latter...'
-					+ ' i can also tell you the weather and tell about things on wikipedia. interact with me by mentioning me with @' + self.name + '.'],
+					+ ' i can also tell you the weather, help with decisions and tell about things on wikipedia. interact with me by mentioning me with @' + self.name + '.'],
 				'de': [
 					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen, scherzfragen stellen und dir beim kopfrechnen üben helfen. kürzlich habe ich mastermind, schnick-schnack-schnuck und drei-gewinnt gelernt. im letzten bin ich nicht gut...'
-					+ ' ich kann dir auch das wetter sagen und bei wikipedia nachschauen was etwas ist. sprich mit mir indem du mich mit @' + self.name + ' erwähnst.']}]
+					+ ' ich kann dir auch das wetter sagen, bei entscheidungen helfen  und bei wikipedia nachschauen was etwas ist. sprich mit mir indem du mich mit @' + self.name + ' erwähnst.']}]
 		]
 
 	def parse(self, message, language, user):
@@ -104,7 +104,7 @@ class stupidbot():
 		if '@'+self.name in message:
 			answer = False
 			# list of skills according to method names.
-			skills = ['mentalarithmetic', 'googleweather', 'wikipedia', 'conundrum', 'mastermind', 'tictactoe', 'rockpaperscissors']
+			skills = ['mentalarithmetic', 'googleweather', 'wikipedia', 'conundrum', 'mastermind', 'tictactoe', 'rockpaperscissors', 'decide']
 			for skill in skills:
 				answer = getattr(self, skill)(message)
 				if answer:
@@ -345,12 +345,12 @@ class stupidbot():
 						else: 
 							number+=1
 				if position: 
-					answer = f'{answer} {position} {positionstr[self.language][0]}'
+					answer = f'@{self.user}, {answer} {position} {positionstr[self.language][0]}'
 				if number: 
-					answer = f'{answer} {number} {numberstr[self.language][0]}'
-				return f'{answer} {again[self.language][0]}'
+					answer = f'@{self.user}, {answer} {number} {numberstr[self.language][0]}'
+				return f'@{self.user}, {answer} {again[self.language][0]}'
 			else: 
-				return f"{done[self.language][0]} {self.expects['guesses']}"
+				return f"@{self.user}, {done[self.language][0]} {self.expects['guesses']}"
 		return False
 	
 	def tictactoefield(self, board_x=[]):
@@ -450,14 +450,14 @@ class stupidbot():
 			self.expects is not None and self.expects['skill'] == 'tictactoe'):
 			if self.expects is None:
 				self.expects={'skill': 'tictactoe', 'game': xinarow(3,3)}
-				return draw[self.language][0] + '\n' + self.tictactoefield(self.expects['game'].board)
+				return f'@{self.user}, {draw[self.language][0]}' + '\n' + self.tictactoefield(self.expects['game'].board)
 			else:
 				coords=re.findall(r'\d', message)
 				coords=[int(x) for x in coords]
 				if coords[0] > len(self.expects['game'].board) or coords[1] > len(self.expects['game'].board[0]):
-					return f'{forbidden2[self.language][0]} {draw[self.language][0]}'
+					return f'@{self.user}, {forbidden2[self.language][0]} {draw[self.language][0]}'
 				if not self.expects['game'].draw(coords[0],coords[1],'X'):
-					return f'{forbidden[self.language][0]} {draw[self.language][0]}'
+					return f'@{self.user}, {forbidden[self.language][0]} {draw[self.language][0]}'
 				if len(self.expects['game'].free()):
 					field=random.sample(self.expects['game'].free(),1)
 					self.expects['game'].draw(int(field[0][1])+1,int(field[0][0])+1,'O')
@@ -467,8 +467,8 @@ class stupidbot():
 				if winner:
 					winboard=self.expects['game'].board
 					self.expects = None
-					return end[self.language][winner] + '\n' + self.tictactoefield(winboard)
-				return draw[self.language][0] + '\n' + self.tictactoefield(self.expects['game'].board)
+					return f'@{self.user}, {end[self.language][winner]}' + '\n' + self.tictactoefield(winboard)
+				return f'@{self.user}, {draw[self.language][0]}' + '\n' + self.tictactoefield(self.expects['game'].board)
 	
 	def rockpaperscissors(self, message):
 		draw={
@@ -491,17 +491,38 @@ class stupidbot():
 			self.expects is not None and self.expects['skill'] == 'rockpaperscissors'):
 			if self.expects is None:
 				self.expects={'skill': 'rockpaperscissors'}
-				return draw[self.language][0]
+				return f'@{self.user}, {draw[self.language][0]}'
 			else:
 				bot=game[self.language][random.randint(0,2)]
 				user=re.split(r'\W+', message)[-1]
 				print (bot, user)
 				if not user in bot:
-					return draw[self.language][0]					
+					return f'@{self.user}, {draw[self.language][0]}'					
 				user=bot.index(user)
 				if user < 1:
-					return f'{bot[1]} {beats[self.language][0]} {bot[user]}. {end[self.language]["O"]}'
+					return f'{bot[1]} {beats[self.language][0]} {bot[user]}. @{self.user}, {end[self.language]["O"]}'
 				elif user > 1:
-					return f'{bot[user]} {beats[self.language][0]} {bot[1]}. {end[self.language]["X"]}'
+					return f'{bot[user]} {beats[self.language][0]} {bot[1]}. @{self.user}, {end[self.language]["X"]}'
 				else:
 					return end[self.language]['draw']
+	
+	def decide(self, message):
+		filterwords={
+			'en':['and', 'or', 'between','decide','rule','clinch','determine'],
+			'de':['und', 'oder', 'zwischen','entscheide','entscheiden','bestimme']
+		}
+		if (re.search('decide|rule|clinch|determine|entscheide|entscheiden|bestimme', message, re.IGNORECASE | re.DOTALL) or
+			self.expects is not None and self.expects['skill'] == 'decide'):
+
+			options=re.split(r'\W+', message)[2:]
+			options=[x for x in options if x not in filterwords[self.language]]
+			if self.expects is None and not options:
+				self.expects = {'skill': 'decide'}
+				answer = {
+					'en': ['from which options should i decide for you?'],
+					'de': ['aus welchen optionen soll ich für dich entscheiden?']
+					}
+				return f'@{self.user}, {answer[self.language][0]}'
+			else:
+				return f'@{self.user}, {random.choice(options)}'
+		self.expects=None
