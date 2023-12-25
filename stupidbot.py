@@ -89,10 +89,10 @@ class stupidbot():
 					'immer gern {0}!']}],
 			['skill|can you|help|fähigkeit|kannst du|hilfe', {
 				'en': [
-					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes, some stupid riddles and help you train mental arithmetics. i recently learned mastermind and tic-tac-toe.'
+					'i\'m glad you asked {0}! currently i can recommend activities in case you are bored, tell a few stupid jokes, some stupid riddles and help you train mental arithmetics. i recently learned mastermind, rock-paper-scissors and tic-tac-toe. i am not good at the latter...'
 					+ ' i can also tell you the weather and tell about things on wikipedia. interact with me by mentioning me with @' + self.name + '.'],
 				'de': [
-					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen, scherzfragen stellen und dir beim kopfrechnen üben helfen. kürzlich habe ich mastermind und drei-gewinnt gelernt.'
+					'schön dass du fragst {0}! derzeit kann ich dir was gegen langeweile empfehlen, ein paar dumme witze erzählen, scherzfragen stellen und dir beim kopfrechnen üben helfen. kürzlich habe ich mastermind, schnick-schnack-schnuck und drei-gewinnt gelernt. im letzten bin ich nicht gut...'
 					+ ' ich kann dir auch das wetter sagen und bei wikipedia nachschauen was etwas ist. sprich mit mir indem du mich mit @' + self.name + ' erwähnst.']}]
 		]
 
@@ -104,7 +104,7 @@ class stupidbot():
 		if '@'+self.name in message:
 			answer = False
 			# list of skills according to method names.
-			skills = ['mentalarithmetic', 'googleweather', 'wikipedia', 'conundrum', 'mastermind', 'tictactoe']
+			skills = ['mentalarithmetic', 'googleweather', 'wikipedia', 'conundrum', 'mastermind', 'tictactoe', 'rockpaperscissors']
 			for skill in skills:
 				answer = getattr(self, skill)(message)
 				if answer:
@@ -469,3 +469,39 @@ class stupidbot():
 					self.expects = None
 					return end[self.language][winner] + '\n' + self.tictactoefield(winboard)
 				return draw[self.language][0] + '\n' + self.tictactoefield(self.expects['game'].board)
+	
+	def rockpaperscissors(self, message):
+		draw={
+			'en':['please type rock, paper or scissors.'],
+			'de':['bitte gib stein, papier oder schere für deinen zug an.']
+		}
+		end={
+			'en':{'X': 'congratulations, you won!', 'O': 'i won!','draw': 'every one is a winner!'},
+			'de':{'X': 'glückwunsch, du hast gewonnen!', 'O': 'ich habe gewonnen!', 'draw': "jeder ist ein gewinner!"}
+		}
+		beats={
+			'en':['beats'],
+			'de':['schlägt']
+		}
+		game={
+			'en':[['rock','paper','scissors'],['paper','scissors','rock'],['scissors','rock','paper']],
+			'de':[['stein','papier','schere'],['papier','schere','stein'],['scissors','schere','papier']]
+		}
+		if (re.search('rockpaperscissors|rock paper scissors|rock-paper-scissors|rps|steinpapierschere|stein papier schere|schnickschnackschnuck|schnick schnack schnuck|schnick-schnack-schnuck', message, re.IGNORECASE | re.DOTALL) or
+			self.expects is not None and self.expects['skill'] == 'rockpaperscissors'):
+			if self.expects is None:
+				self.expects={'skill': 'rockpaperscissors'}
+				return draw[self.language][0]
+			else:
+				bot=game[self.language][random.randint(0,2)]
+				user=re.split(r'\W+', message)[-1]
+				print (bot, user)
+				if not user in bot:
+					return draw[self.language][0]					
+				user=bot.index(user)
+				if user < 1:
+					return f'{bot[1]} {beats[self.language][0]} {bot[user]}. {end[self.language]["O"]}'
+				elif user > 1:
+					return f'{bot[user]} {beats[self.language][0]} {bot[1]}. {end[self.language]["X"]}'
+				else:
+					return end[self.language]['draw']
