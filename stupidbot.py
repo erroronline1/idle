@@ -495,16 +495,16 @@ class stupidbot():
 			else:
 				bot=game[self.language][random.randint(0,2)]
 				user=re.split(r'\W+', message)[-1]
-				print (bot, user)
 				if not user in bot:
 					return f'@{self.user}, {draw[self.language][0]}'					
+				self.expects=None
 				user=bot.index(user)
 				if user < 1:
 					return f'{bot[1]} {beats[self.language][0]} {bot[user]}. @{self.user}, {end[self.language]["O"]}'
 				elif user > 1:
 					return f'{bot[user]} {beats[self.language][0]} {bot[1]}. @{self.user}, {end[self.language]["X"]}'
 				else:
-					return end[self.language]['draw']
+					return f'{bot[user]} {end[self.language]["draw"]}'
 	
 	def decide(self, message):
 		filterwords={
