@@ -9,22 +9,27 @@ from pathlib import Path
 import os
 import sys
 
-# windows-specific fancyness
-from win11toast import toast
 from colorama import Fore, Style, init
-import psutil
 # possible console colors according to https://pypi.org/project/colorama/
 # this however only works with print, not input in cmd and powershell, hence a strict separation from output and input
-if '.exe' in psutil.Process(os.getpid()).parent().name():
-	# powershell is a bit odd on this
-	init(convert=True)
+
+# windows-specific fancyness
+try:
+	from win11toast import toast
+	import psutil
+	if '.exe' in psutil.Process(os.getpid()).parent().name():
+		# powershell is a bit odd on this
+		init(convert=True)
+except:
+	def toast(*ignore):
+		pass
 
 HELLO = '''
                      _           _       _
  ___ ___ ___ ___ ___| |_ _ _ ___| |_ ___| |_
 | .'|   | .'|  _|  _|   | | |  _|   | .'|  _|
 |__,|_|_|__,|_| |___|_|_|_  |___|_|_|__,|_|
-                        |___|                 built 20230226
+                        |___|                 built 20231226
 
 by error on line 1 (erroronline.one)
 '''
